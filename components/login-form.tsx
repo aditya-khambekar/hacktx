@@ -40,7 +40,7 @@ export function LoginForm({
               ? label
                 ? `You're signed in as ${label}.`
                 : "You're signed in."
-              : "We'll create your Stride account the first time you continue."}
+              : "We'll create your Unlisted account the first time you continue."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -92,7 +92,7 @@ function signInMessage(error: string | null | undefined) {
     case "Configuration":
       return "Google sign-in needs AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_SECRET, and DATABASE_URL."
     case "AccessDenied":
-      return "Google did not grant access to Stride."
+      return "Google did not grant access to Unlisted."
     case "OAuthAccountNotLinked":
       return "That email is already linked to a different sign-in method."
     case undefined:
