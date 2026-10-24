@@ -24,3 +24,21 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Unlisted palette (Figma frame HackTX 5:565, sampled from its screenshot). */
+@theme {
+  --color-paper: #f7f6f2;
+  --color-paper-raised: #ffffff;
+  --color-panel: #fefcfb;
+  --color-ink: #232321;
+  --color-ink-soft: #6c6c69;
+  --color-brand: #142c24;
+  --color-clay: #ae4b24;
+  --color-clay-dark: #8f4a2c;
+  --color-clay-tint: #f8eee6;
+  --color-chip: #f1f0ea;
+  --color-sage: #edf1e7;
+  --color-sage-ink: #515e47;
+  --color-line: #e9e7e1;
+  --color-toggle: #e3e4dd;
+}
