@@ -243,6 +243,51 @@ export function searchApartmentLinks(
   });
 }
 
+const APARTMENT_IMAGE_FIELDS = ["title", "link", "source"] as const;
+
+export type ApartmentImage = {
+  url: string;
+} & Partial<Record<(typeof APARTMENT_IMAGE_FIELDS)[number], string>>;
+
+function readImageField(
+  row: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  const value = row[field];
+  if (typeof value !== "string") return undefined;
+  const next = value.trim();
+  return next.length > 0 ? next : undefined;
+}
+
+function readApartmentImage(body: unknown): ApartmentImage | null {
+  if (!isRecord(body) || !Array.isArray(body.images_results)) return null;
+  for (const row of body.images_results) {
+    if (!isRecord(row)) continue;
+    const url = readImageField(row, "original") ?? readImageField(row, "thumbnail");
+    if (!url) continue;
+    const image: ApartmentImage = { url };
+    for (const field of APARTMENT_IMAGE_FIELDS) {
+      const value = readImageField(row, field);
+      if (value) image[field] = value;
+    }
+    return image;
+  }
+  return null;
+}
+
+export async function searchApartmentImage(
+  title: string,
+): Promise<ApartmentImage | SerpBudgetExhausted | null> {
+  const body = await serpSearch({
+    engine: "google_images",
+    q: `${title} West Campus Austin apartment`,
+    hl: "en",
+    gl: "us",
+  });
+  if (isSerpBudgetExhausted(body)) return body;
+  return readApartmentImage(body);
+}
+
 export const REVIEW_PAGE_SIZE = 20;
 export const MAX_REVIEW_PAGES = 2;
 
