@@ -12,6 +12,20 @@
 
 # testing
 /coverage
+*.test.*
+*.spec.*
+__tests__/
+__snapshots__/
+/tests/
+/app/test/
+/lib/fixtures/
+/lib/profile.live.ts
+/vitest*.config.*
+
+# generated outputs and test reports
+/outputs/
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
@@ -25,6 +39,7 @@
 *.pem
 
 # debug
+debug*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -32,6 +47,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
