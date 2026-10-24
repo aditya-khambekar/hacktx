@@ -17,6 +17,7 @@
 __tests__/
 __snapshots__/
 /tests/
+/app/test/
 /lib/fixtures/
 /lib/profile.live.ts
 /vitest*.config.*
