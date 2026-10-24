@@ -1,11 +1,19 @@
 import "server-only"
 
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import NextAuth from "next-auth"
+import NextAuth, { type DefaultSession } from "next-auth"
 import Google from "next-auth/providers/google"
 import { connection } from "next/server"
 
 import { prisma } from "@/lib/db"
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string
+    } & DefaultSession["user"]
+  }
+}
 
 export function googleAuthReady() {
   return Boolean(
@@ -25,6 +33,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/",
   },
   trustHost: true,
+  callbacks: {
+    session({ session, user }) {
+      session.user.id = user.id
+      return session
+    },
+  },
 })
 
 export async function getLandingSession() {
