@@ -12,6 +12,19 @@
 
 # testing
 /coverage
+*.test.*
+*.spec.*
+__tests__/
+__snapshots__/
+/tests/
+/lib/fixtures/
+/lib/profile.live.ts
+/vitest*.config.*
+
+# generated outputs and test reports
+/outputs/
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
