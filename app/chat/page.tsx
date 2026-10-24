@@ -224,6 +224,7 @@ function demoProfile(input: {
   placeId: string
   name: string
   address: string | null
+  thumbnail: string | null
   honestRating: number | null
   honestCount: number
   walking: ReturnType<typeof routeLeg> | null
@@ -233,6 +234,7 @@ function demoProfile(input: {
     placeId: input.placeId,
     name: input.name,
     address: input.address,
+    thumbnail: input.thumbnail,
     mapsUrl: `https://www.google.com/maps/search/?api=1&query_place_id=${input.placeId}`,
     website: null,
     phone: null,
@@ -271,6 +273,8 @@ const DEMO_EVENTS: Array<{ event: string; data: unknown }> = [
       placeId: "demo-castilian",
       name: "The Castilian",
       address: "2323 San Antonio St, Austin, TX 78705",
+      thumbnail:
+        "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&h=450&q=80",
       honestRating: 4.2,
       honestCount: 18,
       walking: routeLeg(1700, 1320, "1.1 mi", "22 min"),
@@ -283,6 +287,8 @@ const DEMO_EVENTS: Array<{ event: string; data: unknown }> = [
       placeId: "demo-26-west",
       name: "26 West",
       address: "2510 Leon St, Austin, TX 78705",
+      thumbnail:
+        "https://images.unsplash.com/photo-1460317442991-0ec209397118?auto=format&fit=crop&w=800&h=450&q=80",
       honestRating: null,
       honestCount: 0,
       walking: routeLeg(1200, 900, "0.7 mi", "15 min"),
@@ -295,6 +301,8 @@ const DEMO_EVENTS: Array<{ event: string; data: unknown }> = [
       placeId: "demo-rambler",
       name: "Rambler",
       address: "2512 Rio Grande St, Austin, TX 78705",
+      thumbnail:
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&h=450&q=80",
       honestRating: 3.8,
       honestCount: 11,
       walking: routeLeg(2100, 1680, "1.3 mi", "28 min"),
@@ -307,6 +315,8 @@ const DEMO_EVENTS: Array<{ event: string; data: unknown }> = [
       placeId: "demo-hidden",
       name: "Should Not Appear",
       address: "1 Hidden St, Austin, TX 78705",
+      thumbnail:
+        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&h=450&q=80",
       honestRating: 5,
       honestCount: 1,
       walking: routeLeg(100, 60, "0.1 mi", "1 min"),
@@ -371,6 +381,10 @@ function SuggestionCard({
     typeof card.profile.address === "string" && card.profile.address.trim()
       ? card.profile.address
       : null
+  const thumbnail =
+    typeof card.profile.thumbnail === "string" && card.profile.thumbnail.trim()
+      ? card.profile.thumbnail
+      : null
   const honestRating = formatHonestRating(card.profile.honestRating)
   const walking = legDuration(card.profile, "walking")
   const cycling = legDuration(card.profile, "cycling")
@@ -382,6 +396,13 @@ function SuggestionCard({
       data-place-id={card.placeId ?? undefined}
       className="w-full"
     >
+      {thumbnail ? (
+        <img
+          src={thumbnail}
+          alt={`Photo of ${name}`}
+          className="aspect-[16/9] w-full object-cover"
+        />
+      ) : null}
       <CardHeader>
         <p className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
           Suggestion
