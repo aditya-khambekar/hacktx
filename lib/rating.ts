@@ -10,7 +10,7 @@ export type HonestRatingResult = {
   unclearCount: number;
 };
 
-export function honestRating(reviews: LabeledReview[]): HonestRatingResult {
+export function honestRating(reviews: readonly LabeledReview[]): HonestRatingResult {
   let honestCount = 0;
   let ratingSum = 0;
   let excludedTour = 0;

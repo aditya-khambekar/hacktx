@@ -18,17 +18,14 @@ export function withSerpBudget<T>(fn: () => T | Promise<T>): Promise<T> {
 export async function serpSearch(
   params: Record<string, string>,
 ): Promise<unknown> {
+  const store = budgetStore.getStore();
+  if (store && store.count >= MAX_SERP_CALLS) {
+    return { error: "serp_budget_exhausted" } satisfies SerpBudgetExhausted;
+  }
+
   const apiKey = process.env.SERPAPI_KEY;
   if (!apiKey) {
     throw new Error("SERPAPI_KEY is not set");
-  }
-
-  const store = budgetStore.getStore();
-  if (store) {
-    if (store.count >= MAX_SERP_CALLS) {
-      return { error: "serp_budget_exhausted" } satisfies SerpBudgetExhausted;
-    }
-    store.count += 1;
   }
 
   const query = new URLSearchParams();
@@ -41,12 +38,18 @@ export async function serpSearch(
   if (!query.has("hl")) query.set("hl", "en");
   if (!query.has("gl")) query.set("gl", "us");
 
+  // Increment before awaiting so parallel calls cannot exceed the cap.
+  if (store) store.count += 1;
+
   const response = await fetch(`${SERP_ENDPOINT}?${query.toString()}`, {
     cache: "no-store",
   });
   const body: unknown = await response.json();
   if (isRecord(body) && typeof body.error === "string") {
-    throw new Error(body.error);
+    throw new Error(body.error.split(apiKey).join("[redacted]"));
+  }
+  if (!response.ok) {
+    throw new Error(`SerpAPI request failed (${response.status})`);
   }
   return body;
 }

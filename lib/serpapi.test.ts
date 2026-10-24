@@ -290,9 +290,7 @@ function directionsPayload(
 
 function mockFetch(body: unknown) {
   vi.stubEnv("SERPAPI_KEY", "test-serp-key");
-  const fetchMock = vi.fn().mockResolvedValue({
-    json: async () => body,
-  });
+  const fetchMock = vi.fn(async () => Response.json(body));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -724,7 +722,7 @@ function mockReviewPages(pages: unknown[]) {
   const fetchMock = vi.fn(async () => {
     const body = pages[Math.min(index, pages.length - 1)] ?? {};
     index += 1;
-    return { json: async () => body };
+    return Response.json(body);
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
