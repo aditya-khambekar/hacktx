@@ -663,7 +663,7 @@ function ChatWorkspace() {
   }
 
   return (
-    <div className="flex h-dvh min-h-0 w-full overflow-hidden">
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
       <ResizablePanelGroup
         key={narrow ? "vertical" : "horizontal"}
         orientation={narrow ? "vertical" : "horizontal"}
@@ -675,9 +675,6 @@ function ChatWorkspace() {
           className="min-w-0"
         >
           <section aria-label="Dashboard" className="flex h-full min-h-0 flex-col">
-            <header className="border-b px-5 py-4">
-              <h1 className="text-base font-medium">Dashboard</h1>
-            </header>
             <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
               Dashboard
             </div>
@@ -690,9 +687,6 @@ function ChatWorkspace() {
           className="min-w-0"
         >
           <section aria-label="Chat" className="flex h-full min-h-0 flex-col bg-muted/40">
-            <header className="border-b px-4 py-4">
-              <h2 className="text-base font-medium">Chat</h2>
-            </header>
             <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <ol className="flex flex-col gap-3">
                 {transcript.length === 0 && !pending ? (

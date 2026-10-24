@@ -1,13 +1,14 @@
 import Link from "next/link"
 import { Suspense } from "react"
 
+import { BrandMark } from "@/components/brand-mark"
 import { LoginForm } from "@/components/login-form"
 import { getLandingSession } from "@/lib/auth"
 
 const points = [
   {
     title: "Ask in plain language",
-    body: "Beds, a budget, pet-friendly. Stride searches West Campus and comes back with a few places.",
+    body: "Beds, a budget, pet-friendly. Unlisted searches West Campus and comes back with a few places.",
   },
   {
     title: "A rating from residents",
@@ -27,11 +28,8 @@ export default function Home({
   return (
     <div className="flex flex-1 flex-col bg-background">
       <header className="flex items-center justify-between px-6 py-5 md:px-10">
-        <Link href="/" className="flex items-center gap-2 font-medium tracking-tight">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground">
-            S
-          </span>
-          Stride
+        <Link href="/" aria-label="Unlisted">
+          <BrandMark />
         </Link>
         <Suspense fallback={<span className="h-8 w-28" aria-hidden="true" />}>
           <HeaderAccount />
@@ -45,7 +43,7 @@ export default function Home({
             Find a West Campus place you can actually live with.
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-8 text-muted-foreground">
-            Stride searches apartments near UT, sets tour reviews aside, and shows
+            Unlisted searches apartments near UT, sets tour reviews aside, and shows
             the walk and bike to the Tower.
           </p>
           <ol className="mt-10 max-w-xl space-y-6">
@@ -71,7 +69,7 @@ export default function Home({
       </main>
 
       <footer className="flex flex-wrap gap-x-6 gap-y-2 px-6 py-8 text-sm text-muted-foreground md:px-10">
-        <span>Stride</span>
+        <span>Unlisted</span>
         <a id="terms" href="#terms" className="underline-offset-4 hover:underline">
           Terms of Service
         </a>
