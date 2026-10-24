@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchApartmentReviews,
   getMapsPlace,
+  searchApartmentImage,
   searchApartmentLinks,
   searchApartmentWebsites,
   searchWestCampusMaps,
@@ -583,6 +584,111 @@ describe("searchApartmentLinks", () => {
       });
       expect(fetchMock).toHaveBeenCalledTimes(24);
     });
+  });
+});
+
+describe("searchApartmentImage", () => {
+  it("searches Google Images and returns the first photo", async () => {
+    const fetchMock = mockFetch({
+      images_results: [
+        "not-an-image",
+        {
+          position: 1,
+          title: "Floor plan drawing",
+          link: "https://example.com/plan",
+          source: "Example Plans",
+          thumbnail: "",
+        },
+        {
+          position: 2,
+          title: "The Callaway exterior",
+          link: "https://example.com/callaway",
+          source: "Apartments.com",
+          original: "https://images.example/callaway.jpg",
+          thumbnail: "https://images.example/callaway-thumb.jpg",
+          original_width: 1200,
+          original_height: 800,
+          is_product: false,
+        },
+        {
+          title: "Later photo",
+          original: "https://images.example/later.jpg",
+        },
+      ],
+    });
+
+    const result = await searchApartmentImage("The Callaway");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = requested(fetchMock);
+    expect(request.init).toEqual({ cache: "no-store" });
+    expect(request.params.get("engine")).toBe("google_images");
+    expect(request.params.get("q")).toBe(
+      "The Callaway West Campus Austin apartment",
+    );
+    expect(request.params.get("hl")).toBe("en");
+    expect(request.params.get("gl")).toBe("us");
+    expect(request.params.get("output")).toBe("json");
+    expect(request.params.get("api_key")).toBe("test-serp-key");
+    expect(result).toEqual({
+      url: "https://images.example/callaway.jpg",
+      title: "The Callaway exterior",
+      link: "https://example.com/callaway",
+      source: "Apartments.com",
+    });
+  });
+
+  it("uses the thumbnail when the original image url is missing", async () => {
+    mockFetch({
+      images_results: [
+        {
+          title: 2,
+          link: null,
+          source: "",
+          thumbnail: "https://images.example/thumb.jpg",
+        },
+      ],
+    });
+
+    await expect(searchApartmentImage("The Callaway")).resolves.toEqual({
+      url: "https://images.example/thumb.jpg",
+    });
+  });
+
+  it("returns null when images_results is missing or has no image url", async () => {
+    mockFetch({ search_metadata: {} });
+    await expect(searchApartmentImage("The Callaway")).resolves.toBeNull();
+
+    mockFetch({
+      images_results: [{ title: "No file", original: "", thumbnail: " " }],
+    });
+    await expect(searchApartmentImage("The Callaway")).resolves.toBeNull();
+  });
+
+  it("returns the budget object and does not fetch another image search", async () => {
+    const fetchMock = mockFetch({
+      images_results: [{ original: "https://images.example/callaway.jpg" }],
+    });
+
+    await withSerpBudget(async () => {
+      for (let call = 0; call < 24; call += 1) {
+        await searchApartmentImage("spent");
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(24);
+      await expect(searchApartmentImage("The Callaway")).resolves.toEqual({
+        error: "serp_budget_exhausted",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(24);
+    });
+  });
+
+  it("throws a SerpAPI error string instead of returning an image", async () => {
+    const fetchMock = mockFetch({ error: "Google Images hasn't returned any results" });
+
+    await expect(searchApartmentImage("The Callaway")).rejects.toThrow(
+      "Google Images hasn't returned any results",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
