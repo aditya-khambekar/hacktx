@@ -20,6 +20,9 @@ export async function GET() {
       select: apartmentFields,
       orderBy: { updatedAt: "desc" },
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'pre-fix',hypothesisId:'H3',location:'api/apartments/route.ts:GET',message:'list returns every saved apartment',data:{count:apartments.length,ids:apartments.map((row)=>row.id),placeIds:apartments.map((row)=>row.placeId)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return apartmentJson(apartments);
   } catch (error) {
     return apartmentServerError(error, "list");

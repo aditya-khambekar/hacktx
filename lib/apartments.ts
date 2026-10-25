@@ -157,7 +157,7 @@ export function apartmentServerError(error: unknown, operation: string) {
     ? "database_schema_outdated"
     : /TLS|SSL|certificate/i.test(message)
       ? "database_tls_error"
-      : error instanceof TypeError && /undefined/.test(message) && /findMany|findFirst|findUnique|upsert|update|\$transaction/.test(message)
+      : error instanceof TypeError && /undefined/.test(message) && /findMany|findFirst|findUnique|upsert|update|deleteMany|\$transaction/.test(message)
         ? "prisma_client_outdated"
         : "database_request_failed";
   // Do not log raw errors: Prisma messages can contain connection details or input.

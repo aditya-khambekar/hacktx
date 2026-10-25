@@ -77,6 +77,9 @@ export function Workspace() {
     if (!response.ok) return;
     const rows: { id: string; profile: ApartmentProfile }[] = await response.json();
     if (signal?.aborted || epoch !== boardEpoch.current) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'pre-fix',hypothesisId:'H3',location:'workspace.tsx:refreshBoard',message:'board refresh rows',data:{count:rows.length,ids:rows.map((row)=>row.id),placeIds:rows.map((row)=>row.profile?.placeId??null)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     setShortlist((current) => mergeDashboard(current, rows));
   }, []);
 
@@ -252,6 +255,37 @@ export function Workspace() {
     }
   }
 
+  function removeApartment(id: string) {
+    const target = shortlist.find((apartment) => apartment.id === id);
+    setShortlist((current) => {
+      const removed = current.find((apartment) => apartment.id === id);
+      // #region agent log
+      fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'pre-fix',hypothesisId:'H1',location:'workspace.tsx:onRemove',message:'remove click local only',data:{id,databaseId:removed?.databaseId??null,deleteRequested:false,beforeCount:current.length,remainingIds:current.filter((apartment)=>apartment.id!==id).map((apartment)=>apartment.id)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      return current.filter((apartment) => apartment.id !== id);
+    });
+    if (!target?.databaseId) return;
+    const databaseId = target.databaseId;
+    const removed = target;
+    void (async () => {
+      let status = 0;
+      let ok = false;
+      try {
+        const response = await fetch(`/api/apartments/${encodeURIComponent(databaseId)}`, { method: "DELETE" });
+        status = response.status;
+        ok = response.ok || response.status === 404;
+      } catch {
+        ok = false;
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'post-fix',hypothesisId:'H1',location:'workspace.tsx:removeApartment',message:'delete request finished',data:{id,databaseId,status,ok},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      if (!ok) {
+        setShortlist((current) => current.some((apartment) => apartment.id === id) ? current : upsertDashboard(current, removed));
+      }
+    })();
+  }
+
   function toggleSaved(id: string) {
     setSavedIds((current) => {
       const next = new Set(current);
@@ -348,7 +382,7 @@ export function Workspace() {
             budget={budget}
             savedIds={savedIds}
             onToggleSaved={toggleSaved}
-            onRemove={(id) => setShortlist((current) => current.filter((a) => a.id !== id))}
+            onRemove={removeApartment}
             selectedId={selectedId}
             onSelect={setSelectedId}
             emptyState={emptyState}
