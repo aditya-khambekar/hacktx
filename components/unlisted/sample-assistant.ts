@@ -1,5 +1,5 @@
-// SAMPLE ASSISTANT. Answers from the shortlist on the page with fixed rules.
-// It stands in for POST /api/chat until the backend is connected.
+// Local copy for the tradeoff banner and the contact-admin draft.
+// Chat replies come from POST /api/chat.
 import { formatUsd, summarizeCosts } from "./costs";
 import type { ComparisonApartment } from "./types";
 

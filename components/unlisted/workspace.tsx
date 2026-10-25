@@ -4,10 +4,24 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { ApartmentDetail } from "./apartment-detail";
 import { AddApartmentDialog } from "./add-apartment-dialog";
 import { ApartmentComparison, type SortKey } from "./apartment-comparison";
-import { AssistantPanel, type ChatMessage } from "./assistant-panel";
+import { AssistantPanel, type AddSuggestionResult, type ChatMessage } from "./assistant-panel";
+import {
+  chatFailureCopy,
+  chatRequestBody,
+  conversationIdFrom,
+  errorCodeFrom,
+  mergeDashboard,
+  messageTextFrom,
+  readChatStream,
+  readFailureCode,
+  statusPhaseFrom,
+  suggestionFrom,
+  upsertDashboard,
+  withSuggestion,
+} from "./chat-client";
 import { ArrowUpRight, Plus, Receipt, Sparkle } from "./icons";
 import { PreferencesBar, budgetFromPreferences } from "./preferences-bar";
-import { introMessage, replyTo, tradeoffSummary } from "./sample-assistant";
+import { introMessage, tradeoffSummary } from "./sample-assistant";
 import { SiteHeader, type WorkspaceView } from "./site-header";
 import { toComparisonApartment } from "./costs";
 import type { ApartmentProfile, ComparisonApartment, Preference } from "./types";
@@ -49,55 +63,193 @@ export function Workspace() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState(false);
+  const [statusPhase, setStatusPhase] = useState<string | null>(null);
   const [shareLabel, setShareLabel] = useState("Share shortlist");
-  const replyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const conversationRef = useRef<string | null>(null);
+  const runGeneration = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const boardEpoch = useRef(0);
 
-  useEffect(() => () => clearTimeout(replyTimer.current), []);
+  const refreshBoard = useCallback(async (signal?: AbortSignal) => {
+    const epoch = ++boardEpoch.current;
+    const response = await fetch("/api/apartments", { signal });
+    if (signal?.aborted || epoch !== boardEpoch.current) return;
+    if (!response.ok) return;
+    const rows: { id: string; profile: ApartmentProfile }[] = await response.json();
+    if (signal?.aborted || epoch !== boardEpoch.current) return;
+    setShortlist((current) => mergeDashboard(current, rows));
+  }, []);
 
   useEffect(() => {
     const request = new AbortController();
-    fetch("/api/apartments", { signal: request.signal })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const rows: { id: string; profile: ApartmentProfile }[] = await response.json();
-        if (!request.signal.aborted) setShortlist((current) => {
-          const saved = rows.map((row) => ({ ...toComparisonApartment(row.profile), databaseId: row.id }));
-          const active = current.filter((item) => item.researchStatus === "loading" || item.researchStatus === "error");
-          return [...saved.filter((item) => !active.some((pending) => pending.id === item.id)), ...active];
-        });
-      })
+    refreshBoard(request.signal)
       .catch(() => { /* Signed-out visitors start with an empty dashboard. */ })
       .finally(() => { if (!request.signal.aborted) setLoaded(true); });
     return () => request.abort();
+  }, [refreshBoard]);
+
+  useEffect(() => () => {
+    runGeneration.current += 1;
+    abortRef.current?.abort();
   }, []);
 
   const visible = view === "saved" ? shortlist.filter((a) => savedIds.has(a.id)) : shortlist;
   const budget = budgetFromPreferences(preferences);
   const tradeoff = tradeoffSummary(shortlist);
 
-  const send = useCallback(
-    (text: string) => {
-      setMessages((current) => [...current, { id: nextMessageId(), role: "user", text }]);
-      setPending(true);
-      clearTimeout(replyTimer.current);
-      replyTimer.current = setTimeout(() => {
-        const reply = replyTo(text, shortlist);
-        if (reply.action?.type === "sort") setSort(reply.action.sort);
-        if (reply.action?.type === "focus") setSelectedId(reply.action.id);
-        if (reply.action?.type === "add") setAddOpen(true);
-        setMessages((current) => [...current, { id: nextMessageId(), role: "assistant", text: reply.text }]);
-        setPending(false);
-      }, 450);
-    },
-    [shortlist],
-  );
+  const send = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || (abortRef.current && !abortRef.current.signal.aborted)) return;
+
+    const generation = ++runGeneration.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const assistantId = nextMessageId();
+    const stillCurrent = () => runGeneration.current === generation && !controller.signal.aborted;
+
+    setMessages((current) => [...current, { id: nextMessageId(), role: "user", text: trimmed }]);
+    setPending(true);
+    setStatusPhase(null);
+
+    const writeAssistant = (update: (message: ChatMessage) => ChatMessage) => {
+      setMessages((current) => {
+        if (!stillCurrent()) return current;
+        const index = current.findIndex((message) => message.id === assistantId);
+        if (index === -1) return [...current, update({ id: assistantId, role: "assistant", text: "" })];
+        return current.map((message) => (message.id === assistantId ? update(message) : message));
+      });
+    };
+
+    const note = (copy: string) => {
+      writeAssistant((message) => {
+        if (!message.text) return { ...message, text: copy };
+        if (message.text.includes(copy)) return message;
+        return { ...message, text: `${message.text}\n\n${copy}` };
+      });
+    };
+
+    void (async () => {
+      let sawReply = false;
+      let refresh = false;
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          signal: controller.signal,
+          body: JSON.stringify(chatRequestBody(trimmed, conversationRef.current, preferences.map((item) => item.label))),
+        });
+        if (!stillCurrent()) return;
+
+        if (!response.ok || !response.body) {
+          const code = response.status === 401 ? "unauthorized" : await readFailureCode(response);
+          if (!stillCurrent()) return;
+          if (code === "not_found") conversationRef.current = null;
+          sawReply = true;
+          note(chatFailureCopy(code));
+          return;
+        }
+
+        await readChatStream(response.body, (event) => {
+          if (!stillCurrent()) return;
+          if (event.event === "status") {
+            const phase = statusPhaseFrom(event.data);
+            if (phase) setStatusPhase(phase);
+            return;
+          }
+          if (event.event === "suggestion") {
+            const profile = suggestionFrom(event.data);
+            if (!profile) return;
+            sawReply = true;
+            writeAssistant((message) => ({ ...message, suggestions: withSuggestion(message.suggestions, profile) }));
+            return;
+          }
+          if (event.event === "message") {
+            const reply = messageTextFrom(event.data);
+            if (reply === null || !reply.trim()) return;
+            sawReply = true;
+            writeAssistant((message) => ({ ...message, text: reply }));
+            return;
+          }
+          if (event.event === "error") {
+            sawReply = true;
+            note(chatFailureCopy(errorCodeFrom(event.data)));
+            return;
+          }
+          if (event.event === "done") {
+            const id = conversationIdFrom(event.data);
+            if (id) conversationRef.current = id;
+            refresh = true;
+          }
+        });
+
+        if (!stillCurrent()) return;
+        if (!sawReply) note("The assistant didn’t reply. Try again.");
+        if (refresh) {
+          try {
+            await refreshBoard();
+          } catch {
+            // The reply still stands when the board cannot refresh.
+          }
+        }
+      } catch {
+        if (!stillCurrent()) return;
+        note("Couldn’t reach the assistant. Try again.");
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null;
+        if (stillCurrent()) {
+          setPending(false);
+          setStatusPhase(null);
+        }
+      }
+    })();
+  }, [preferences, refreshBoard]);
 
   const closeAssistant = useCallback(() => setAssistantOpen(false), []);
 
   function newConversation() {
-    clearTimeout(replyTimer.current);
+    runGeneration.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    conversationRef.current = null;
     setMessages([]);
     setPending(false);
+    setStatusPhase(null);
+  }
+
+  async function addSuggestion(profile: ApartmentProfile): Promise<AddSuggestionResult> {
+    try {
+      const response = await fetch("/api/apartments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile }),
+      });
+      if (response.status === 401) return "signin";
+      if (!response.ok) return "failed";
+      const saved: { id?: unknown; profile?: unknown } = await response.json();
+      if (typeof saved.id !== "string" || !saved.id) return "failed";
+      const stored = suggestionFrom(saved.profile) ?? profile;
+      let apartment: ComparisonApartment | null = null;
+      for (const candidate of [stored, profile]) {
+        try {
+          apartment = { ...toComparisonApartment(candidate), databaseId: saved.id };
+          break;
+        } catch {
+          apartment = null;
+        }
+      }
+      if (!apartment) return "failed";
+      const column = apartment;
+      setShortlist((current) => upsertDashboard(current, column));
+      setView("workspace");
+      try {
+        await refreshBoard();
+      } catch {
+        // The saved row is already on the board.
+      }
+      return "saved";
+    } catch {
+      return "failed";
+    }
   }
 
   function toggleSaved(id: string) {
@@ -249,7 +401,10 @@ export function Workspace() {
           intro={introMessage()}
           messages={messages}
           pending={pending}
+          statusPhase={statusPhase}
+          dashboardIds={new Set(shortlist.flatMap((apartment) => apartment.databaseId ? [apartment.id] : []))}
           onSend={send}
+          onAddSuggestion={addSuggestion}
           onNewConversation={newConversation}
           onAddPlace={() => setAddOpen(true)}
           focusId={selectedId}

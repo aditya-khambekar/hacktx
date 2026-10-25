@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { chatPhaseLabel } from "./chat-client";
 import { FeeBreakdown, SamplePill } from "./fee-breakdown";
 import { ArrowUp, Board, ChevronDown, Close, PencilSquare, Plus, Sparkle } from "./icons";
 import { draftContactMessage } from "./sample-assistant";
-import type { ComparisonApartment } from "./types";
+import type { ApartmentProfile, ComparisonApartment } from "./types";
 
-export type ChatMessage = { id: string; role: "user" | "assistant"; text: string };
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  suggestions?: ApartmentProfile[];
+};
+
+export type AddSuggestionResult = "saved" | "signin" | "failed";
 
 const QUICK_REPLIES = ["Lower rent", "Shorter walk"];
 
@@ -139,7 +147,12 @@ type AssistantPanelProps = {
   intro: string;
   messages: ChatMessage[];
   pending: boolean;
+  /** Latest `status` phase from the chat stream. Null until the first one arrives. */
+  statusPhase: string | null;
+  /** Place ids already stored for this user. */
+  dashboardIds: ReadonlySet<string>;
   onSend: (text: string) => void;
+  onAddSuggestion: (profile: ApartmentProfile) => Promise<AddSuggestionResult>;
   onNewConversation: () => void;
   onAddPlace: () => void;
   focusId: string | null;
@@ -149,12 +162,81 @@ type AssistantPanelProps = {
   onClose: () => void;
 };
 
+function addressLine(address: string | null | undefined) {
+  if (typeof address !== "string") return "Address not listed";
+  const trimmed = address.trim();
+  return trimmed || "Address not listed";
+}
+
+function durationLine(leg: { formattedDuration?: string } | null | undefined) {
+  const value = leg?.formattedDuration;
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function honestRatingLine(rating: number | null | undefined) {
+  if (typeof rating !== "number" || !Number.isFinite(rating)) {
+    return "The sample has no reviews about the apartment itself";
+  }
+  return `Honest rating ${rating.toFixed(1)} / 5`;
+}
+
+function SuggestionCard({
+  profile,
+  onDashboard,
+  saving,
+  error,
+  onAdd,
+}: {
+  profile: ApartmentProfile;
+  onDashboard: boolean;
+  saving: boolean;
+  error?: string;
+  onAdd: (profile: ApartmentProfile) => void;
+}) {
+  const walk = durationLine(profile.campus?.walking);
+  const bike = durationLine(profile.campus?.cycling);
+  return (
+    <article className="w-full rounded-[10px] border border-line bg-paper-raised p-3.5" aria-label={profile.name}>
+      <h3 className="text-[13.5px] font-semibold text-ink">{profile.name}</h3>
+      <p className="mt-1 text-[12px] leading-[18px] text-ink-soft">{addressLine(profile.address)}</p>
+      <p className="mt-2 text-[12.5px] leading-[18px] text-ink">{honestRatingLine(profile.honestRating)}</p>
+      <p className="mt-2 text-[11.5px] text-ink-soft">To the UT Tower</p>
+      <dl className="mt-1 text-[12px] leading-[18px] text-ink">
+        <div className="flex gap-2">
+          <dt className="text-ink-soft">Walk</dt>
+          <dd>{walk}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-ink-soft">Bike</dt>
+          <dd>{bike}</dd>
+        </div>
+      </dl>
+      <button
+        type="button"
+        onClick={() => onAdd(profile)}
+        disabled={onDashboard || saving}
+        className="mt-3 h-[31px] rounded-full bg-clay px-3.5 text-[12px] font-semibold text-white hover:bg-clay-dark disabled:opacity-50"
+      >
+        {onDashboard ? "On your dashboard" : saving ? "Adding…" : "Add to dashboard"}
+      </button>
+      {error && (
+        <p className="mt-2 text-[11.5px] leading-snug text-clay-dark" role="alert">
+          {error}
+        </p>
+      )}
+    </article>
+  );
+}
+
 export function AssistantPanel({
   apartments,
   intro,
   messages,
   pending,
+  statusPhase,
+  dashboardIds,
   onSend,
+  onAddSuggestion,
   onNewConversation,
   onAddPlace,
   focusId,
@@ -163,14 +245,30 @@ export function AssistantPanel({
   onClose,
 }: AssistantPanelProps) {
   const [draft, setDraft] = useState("");
+  const [savingIds, setSavingIds] = useState<Set<string>>(() => new Set());
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
+  const savingRef = useRef<Set<string>>(new Set());
+  const hadMessages = useRef(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
   const focused = apartments.find((a) => a.id === focusId) ?? apartments[0];
 
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 && !pending) return;
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, pending]);
+  }, [messages, pending, statusPhase]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      hadMessages.current = true;
+      return;
+    }
+    if (!hadMessages.current) return;
+    hadMessages.current = false;
+    savingRef.current = new Set();
+    setAddErrors({});
+    setSavingIds(new Set());
+  }, [messages.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -184,6 +282,30 @@ export function AssistantPanel({
     if (!trimmed || pending) return;
     onSend(trimmed);
     setDraft("");
+  }
+
+  function addSuggestion(profile: ApartmentProfile) {
+    if (savingRef.current.has(profile.placeId) || dashboardIds.has(profile.placeId)) return;
+    savingRef.current.add(profile.placeId);
+    setSavingIds(new Set(savingRef.current));
+    setAddErrors((current) => {
+      if (!current[profile.placeId]) return current;
+      const next = { ...current };
+      delete next[profile.placeId];
+      return next;
+    });
+    void onAddSuggestion(profile).then((result) => {
+      savingRef.current.delete(profile.placeId);
+      setSavingIds(new Set(savingRef.current));
+      if (result === "saved") return;
+      setAddErrors((current) => ({
+        ...current,
+        [profile.placeId]:
+          result === "signin"
+            ? "Sign in to add this apartment to your dashboard."
+            : "Couldn’t add this apartment. Try again.",
+      }));
+    });
   }
 
   return (
@@ -254,20 +376,48 @@ export function AssistantPanel({
 
           {focused && <ContactAdministrators apartments={apartments} focused={focused} onFocusChange={onFocusChange} />}
 
-          {messages.length > 0 && (
-            <ol className="flex flex-col gap-3" aria-live="polite">
-              {messages.map((message) => (
+          {(messages.length > 0 || pending) && (
+            <ol className="flex flex-col gap-3" aria-live="polite" aria-busy={pending}>
+              {messages.map((message) => {
+                const suggestions = message.suggestions?.slice(0, 3) ?? [];
+                if (message.role === "user") {
+                  return (
+                    <li key={message.id} className="max-w-[92%] self-end rounded-xl rounded-br-sm bg-clay-tint px-3.5 py-2.5 text-[13.5px] leading-[20px] whitespace-pre-wrap text-clay-dark">
+                      <span className="sr-only">You: </span>
+                      {message.text}
+                    </li>
+                  );
+                }
+                if (!message.text && suggestions.length === 0) return null;
+                return (
+                  <li key={message.id} className="flex w-full flex-col items-start gap-2 self-start">
+                    {message.text && (
+                      <div className="max-w-[92%] rounded-xl rounded-bl-sm border border-line bg-paper-raised px-3.5 py-2.5 text-[13.5px] leading-[20px] whitespace-pre-wrap text-ink">
+                        <span className="sr-only">Assistant: </span>
+                        {message.text}
+                      </div>
+                    )}
+                    {suggestions.map((profile) => (
+                      <SuggestionCard
+                        key={profile.placeId}
+                        profile={profile}
+                        onDashboard={dashboardIds.has(profile.placeId)}
+                        saving={savingIds.has(profile.placeId)}
+                        error={addErrors[profile.placeId]}
+                        onAdd={addSuggestion}
+                      />
+                    ))}
+                  </li>
+                );
+              })}
+              {pending && (
                 <li
-                  key={message.id}
-                  className={`max-w-[92%] rounded-xl px-3.5 py-2.5 text-[13.5px] leading-[20px] ${
-                    message.role === "user" ? "self-end rounded-br-sm bg-clay-tint text-clay-dark" : "self-start rounded-bl-sm border border-line bg-paper-raised text-ink"
-                  }`}
+                  className="self-start rounded-xl border border-line bg-paper-raised px-3.5 py-2.5 text-[13px] text-ink-soft"
+                  data-phase={statusPhase ?? undefined}
                 >
-                  <span className="sr-only">{message.role === "user" ? "You: " : "Assistant: "}</span>
-                  {message.text}
+                  {chatPhaseLabel(statusPhase)}
                 </li>
-              ))}
-              {pending && <li className="self-start rounded-xl border border-line bg-paper-raised px-3.5 py-2.5 text-[13px] text-ink-soft">Looking at your board…</li>}
+              )}
             </ol>
           )}
         </div>
@@ -316,8 +466,6 @@ export function AssistantPanel({
             </div>
           </div>
           <p className="mt-2.5 text-center text-[10px] leading-[15px] text-ink-soft">
-            Sample assistant · Muse isn&rsquo;t connected yet
-            <br />
             AI can make mistakes. Confirm details with the property.
           </p>
         </form>

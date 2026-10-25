@@ -64,6 +64,18 @@ export type ApartmentProfile = {
   sources: string[];
 };
 
+/** Phases `buildProfile` can report while a chat turn is researching one place. */
+export type ProfileStatusPhase =
+  | "web_search"
+  | "place"
+  | "reviews"
+  | "directions_walking"
+  | "directions_cycling"
+  | "classify_reviews"
+  | "extract_listing";
+
+export type ProfileStatusHandler = (phase: ProfileStatusPhase) => void;
+
 type JsonRecord = Record<string, unknown>;
 type OrganicResult = { title: string; link: string; snippet: string };
 
@@ -235,7 +247,10 @@ async function structuredCall(
   return result;
 }
 
-export async function buildProfile(placeId: string): Promise<ApartmentProfile> {
+export async function buildProfile(
+  placeId: string,
+  onStatus?: ProfileStatusHandler,
+): Promise<ApartmentProfile> {
   if (!placeId.trim()) throw new Error("placeId is required");
   const apiKey = process.env.MODEL_API_KEY;
   if (!apiKey) throw new Error("MODEL_API_KEY is required");
@@ -257,6 +272,7 @@ export async function buildProfile(placeId: string): Promise<ApartmentProfile> {
     return payload;
   }
 
+  onStatus?.("place");
   const placeResponse = await search({
     engine: "google_maps", place_id: placeId, hl: "en",
   });
@@ -267,6 +283,7 @@ export async function buildProfile(placeId: string): Promise<ApartmentProfile> {
 
   const [listingData, reviewData, routeData] = await Promise.all([
     (async () => {
+      onStatus?.("web_search");
       const listingResponses = await Promise.all([
         `"${name}" floor plans rent West Campus Austin`,
         `"${name}" Austin amenities apartment features`,
@@ -279,6 +296,7 @@ export async function buildProfile(placeId: string): Promise<ApartmentProfile> {
       return organicResults;
     })(),
     (async () => {
+      onStatus?.("reviews");
       let googleRating = number(place.rating);
       const reviews: ApartmentProfile["reviews"] = [];
       let nextPageToken: string | null = null;
@@ -318,6 +336,8 @@ export async function buildProfile(placeId: string): Promise<ApartmentProfile> {
       let walking: RouteLeg | null = null;
       let cycling: RouteLeg | null = null;
       if (start) {
+        onStatus?.("directions_walking");
+        onStatus?.("directions_cycling");
         const legs = await Promise.all([search({
           engine: "google_maps_directions", ...start, end_coords: UT_TOWER_COORDS,
           travel_mode: "2", distance_unit: "1", hl: "en", gl: "us",
@@ -335,6 +355,8 @@ export async function buildProfile(placeId: string): Promise<ApartmentProfile> {
   const { reviews, googleRating } = reviewData;
   const { walking, cycling } = routeData;
 
+  onStatus?.("classify_reviews");
+  onStatus?.("extract_listing");
   const [labels, facts] = await Promise.all([
     structuredCall(
     client, model, "ReviewLabels", reviewLabelsSchema,
