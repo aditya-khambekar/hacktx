@@ -22,7 +22,7 @@ import {
 import { ArrowUpRight, Plus, Receipt, Sparkle } from "./icons";
 import { PreferencesBar, budgetFromPreferences } from "./preferences-bar";
 import { introMessage, tradeoffSummary } from "./sample-assistant";
-import { SiteHeader, type WorkspaceView } from "./site-header";
+import { SiteHeader, type HeaderUser, type WorkspaceView } from "./site-header";
 import { toComparisonApartment } from "./costs";
 import type { ApartmentProfile, ComparisonApartment, Preference } from "./types";
 
@@ -36,7 +36,7 @@ function detailLocation() { return new URLSearchParams(window.location.search).g
 let messageCount = 0;
 const nextMessageId = () => `m${++messageCount}`;
 
-export function Workspace() {
+export function Workspace({ user }: { user?: HeaderUser | null }) {
   const detailId = useSyncExternalStore(subscribeToNavigation, detailLocation, () => "");
   const [loaded, setLoaded] = useState(false);
   function openApartment(id: string) {
@@ -77,9 +77,6 @@ export function Workspace() {
     if (!response.ok) return;
     const rows: { id: string; profile: ApartmentProfile }[] = await response.json();
     if (signal?.aborted || epoch !== boardEpoch.current) return;
-    // #region agent log
-    fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'pre-fix',hypothesisId:'H3',location:'workspace.tsx:refreshBoard',message:'board refresh rows',data:{count:rows.length,ids:rows.map((row)=>row.id),placeIds:rows.map((row)=>row.profile?.placeId??null)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     setShortlist((current) => mergeDashboard(current, rows));
   }, []);
 
@@ -257,29 +254,18 @@ export function Workspace() {
 
   function removeApartment(id: string) {
     const target = shortlist.find((apartment) => apartment.id === id);
-    setShortlist((current) => {
-      const removed = current.find((apartment) => apartment.id === id);
-      // #region agent log
-      fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'pre-fix',hypothesisId:'H1',location:'workspace.tsx:onRemove',message:'remove click local only',data:{id,databaseId:removed?.databaseId??null,deleteRequested:false,beforeCount:current.length,remainingIds:current.filter((apartment)=>apartment.id!==id).map((apartment)=>apartment.id)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      return current.filter((apartment) => apartment.id !== id);
-    });
+    setShortlist((current) => current.filter((apartment) => apartment.id !== id));
     if (!target?.databaseId) return;
     const databaseId = target.databaseId;
     const removed = target;
     void (async () => {
-      let status = 0;
       let ok = false;
       try {
         const response = await fetch(`/api/apartments/${encodeURIComponent(databaseId)}`, { method: "DELETE" });
-        status = response.status;
         ok = response.ok || response.status === 404;
       } catch {
         ok = false;
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'post-fix',hypothesisId:'H1',location:'workspace.tsx:removeApartment',message:'delete request finished',data:{id,databaseId,status,ok},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (!ok) {
         setShortlist((current) => current.some((apartment) => apartment.id === id) ? current : upsertDashboard(current, removed));
       }
@@ -357,6 +343,7 @@ export function Workspace() {
         saveStatus={shortlist.some((apartment) => apartment.researchStatus === "loading") ? "Researching apartment details…" : shortlist.some((apartment) => apartment.researchStatus === "error") ? "Some apartments need attention" : shortlist.length ? "Added apartments saved" : "No apartments added"}
         onShare={share}
         shareLabel={shareLabel}
+        user={user}
       />
 
       <div className={`grid w-full flex-1 ${detailId ? "" : "lg:grid-cols-[minmax(0,1fr)_368px]"}`}>

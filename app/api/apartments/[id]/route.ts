@@ -68,9 +68,6 @@ export async function DELETE(
     const deleted = await prisma.apartment.deleteMany({
       where: { id, userId: session.user.id },
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'post-fix',hypothesisId:'H1',location:'api/apartments/[id]/route.ts:DELETE',message:'delete saved apartment',data:{id,deletedCount:deleted.count},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return deleted.count > 0
       ? apartmentJson({ ok: true })
       : apartmentJson({ error: "not_found" }, 404);

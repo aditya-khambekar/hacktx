@@ -123,9 +123,6 @@ export function mergeDashboard(
   }
   const active = current.filter((item) => item.researchStatus === "loading" || item.researchStatus === "error");
   const merged = [...saved.filter((item) => !active.some((pending) => pending.id === item.id)), ...active];
-  // #region agent log
-  fetch('http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cb30fc'},body:JSON.stringify({sessionId:'cb30fc',runId:'pre-fix',hypothesisId:'H5',location:'chat-client.ts:mergeDashboard',message:'merge rebuilt board from server rows',data:{currentIds:current.map((item)=>item.id),serverIds:saved.map((item)=>item.id),resultIds:merged.map((item)=>item.id),keptLocalOnly:active.map((item)=>item.id)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   return merged;
 }
 
