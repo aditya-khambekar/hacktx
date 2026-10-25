@@ -15,7 +15,6 @@ const CHAT_PHASES = [
   "directions_cycling",
   "classify_reviews",
   "extract_listing",
-  "site_research",
 ] as const;
 
 export type ChatPhase = (typeof CHAT_PHASES)[number];
@@ -29,7 +28,6 @@ const PHASE_LABEL: Record<ChatPhase, string> = {
   directions_cycling: "Checking the bike ride to the UT Tower…",
   classify_reviews: "Sorting reviews…",
   extract_listing: "Reading the listing…",
-  site_research: "Reading the property website…",
 };
 
 export type ChatStreamEvent = { event: string; data: unknown };

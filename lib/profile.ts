@@ -1,14 +1,6 @@
 import OpenAI from "openai";
 import { honestRating } from "./rating";
 import { serpSearch } from "./serpapi";
-import {
-  mergeSiteListing,
-  researchOfficialSite,
-  shouldResearchSite,
-  type LeaseTerms,
-} from "./site-research";
-
-export type { LeaseTerms };
 
 const MUSE_BASE_URL = "https://api.meta.ai/v1";
 const UT_TOWER_COORDS = "30.2862,-97.7394";
@@ -69,7 +61,6 @@ export type ApartmentProfile = {
   }>;
   amenities?: Array<{ name: string; sourceUrl: string }>;
   propertyFees?: Array<{ name: string; amount: number | null; cadence: string | null; sourceUrl: string }>;
-  lease?: LeaseTerms;
   sources: string[];
 };
 
@@ -81,8 +72,7 @@ export type ProfileStatusPhase =
   | "directions_walking"
   | "directions_cycling"
   | "classify_reviews"
-  | "extract_listing"
-  | "site_research";
+  | "extract_listing";
 
 export type ProfileStatusHandler = (phase: ProfileStatusPhase) => void;
 
@@ -399,7 +389,7 @@ Organic results: ${JSON.stringify(organicResults)}`,
     }
   }
 
-  const assembled: ApartmentProfile = {
+  return {
     placeId,
     name,
     address,
@@ -411,7 +401,7 @@ Organic results: ${JSON.stringify(organicResults)}`,
     googleRating,
     googleReviewCount: number(place.reviews),
     ...honestRating(reviews),
-    campus: { destination: "UT Tower" as const, endCoords: UT_TOWER_COORDS, walking, cycling },
+    campus: { destination: "UT Tower", endCoords: UT_TOWER_COORDS, walking, cycling },
     floorplans: readFloorplans(facts, organicResults),
     amenities: rows(facts.amenities).flatMap((amenity) => {
       const name = text(amenity.name);
@@ -425,38 +415,6 @@ Organic results: ${JSON.stringify(organicResults)}`,
       return name && sourceUrl && snippet ? [{ name, sourceUrl, amount: sourceAmount(fee.amount, snippet), cadence: text(fee.cadence) }] : [];
     }),
     reviews,
-    sources,
-  };
-
-  const website = text(place.website);
-  let { floorplans, amenities, propertyFees } = assembled;
-  let lease: LeaseTerms | undefined;
-  if (shouldResearchSite(website, { floorplans, amenities, propertyFees, lease })) {
-    onStatus?.("site_research");
-    try {
-      const site = await researchOfficialSite({ website: website!, name, client, model });
-      if (site) {
-        const merged = mergeSiteListing({ floorplans, amenities, propertyFees, lease }, site);
-        floorplans = merged.floorplans;
-        amenities = merged.amenities;
-        propertyFees = merged.propertyFees;
-        lease = merged.lease ?? undefined;
-        for (const source of site.sources) {
-          if (!sources.includes(source)) sources.push(source);
-        }
-      }
-    } catch {
-      // Keep the SerpAPI profile when the official-site pass fails.
-    }
-  }
-
-  return {
-    ...assembled,
-    website,
-    floorplans,
-    amenities,
-    propertyFees,
-    ...(lease ? { lease } : {}),
     sources,
   };
 }

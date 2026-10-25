@@ -50,7 +50,10 @@ function normalizeCadence(cadence: string | null): FeeCadence | null {
   return null;
 }
 
-/** Maps a saved ApartmentProfile onto a comparison column. */
+/**
+ * Maps a saved ApartmentProfile onto a comparison column. Fields the profile
+ * does not carry (amenities, lease terms) stay empty and render as "Not listed".
+ */
 export function toComparisonApartment(profile: ApartmentProfile): ComparisonApartment {
   const plan = profile.floorplans[0];
   const fees: Fee[] = [];
@@ -81,11 +84,7 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     walking: profile.campus.walking,
     cycling: profile.campus.cycling,
     amenities: [...new Set(profile.amenities?.map((amenity) => amenity.name) ?? [])],
-    lease: {
-      months: profile.lease?.months ?? null,
-      type: profile.lease?.type ?? null,
-      dates: profile.lease?.dates ?? null,
-    },
+    lease: { months: null, type: null, dates: null },
     honestRating: profile.honestRating,
     honestCount: profile.honestCount,
     excludedTour: profile.excludedTour,
@@ -93,12 +92,7 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     googleReviewCount: profile.googleReviewCount,
     fees,
     reviews: profile.reviews,
-    sources: [...new Set([
-      ...profile.floorplans.flatMap((floorplan) => floorplan.sourceUrl ? [floorplan.sourceUrl] : []),
-      ...profile.amenities?.map((amenity) => amenity.sourceUrl) ?? [],
-      ...profile.propertyFees?.map((fee) => fee.sourceUrl) ?? [],
-      ...profile.lease?.sourceUrl ? [profile.lease.sourceUrl] : [],
-    ])],
+    sources: [...new Set([...profile.floorplans.flatMap((floorplan) => floorplan.sourceUrl ? [floorplan.sourceUrl] : []), ...profile.amenities?.map((amenity) => amenity.sourceUrl) ?? [], ...profile.propertyFees?.map((fee) => fee.sourceUrl) ?? []])],
     photoTone: "stucco",
     isSample: false,
   };

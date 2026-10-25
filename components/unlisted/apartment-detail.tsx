@@ -6,15 +6,6 @@ import { ListingPhoto } from "./listing-photo";
 import { formatUsd, toComparisonApartment } from "./costs";
 import type { ComparisonApartment } from "./types";
 
-function leaseTerms(apartment: ComparisonApartment) {
-  const parts = [
-    apartment.lease.months === null ? "" : `${apartment.lease.months} months`,
-    apartment.lease.type ?? "",
-    apartment.lease.dates ?? "",
-  ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "Confirm lease dates and terms with the property.";
-}
-
 export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apartment: ComparisonApartment; onBack: () => void; onRetry: () => void }) {
   const [planIndex, setPlanIndex] = useState(0);
   const profile = original.profile;
@@ -37,7 +28,7 @@ export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apar
           {apartment.rentSourceUrl && /^https?:\/\//i.test(apartment.rentSourceUrl) && <a href={apartment.rentSourceUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm text-clay-dark underline underline-offset-4">Check the listed price</a>}
           <div className="mt-5 [&_section]:text-sm [&_dt]:text-sm [&_dd]:text-sm"><FeeBreakdown key={planIndex} apartment={apartment} defaultOpen /></div>
         </section>
-        <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6" aria-labelledby="detail-property"><h2 id="detail-property" className="text-xl font-semibold">The property</h2><dl className="mt-4 space-y-4 text-sm leading-relaxed"><div><dt className="font-semibold">Floor plan</dt><dd className="mt-1 text-ink-soft">{apartment.floorPlan.beds ?? "?"} beds · {apartment.floorPlan.baths ?? "?"} baths{selectedPlan?.sqft !== null && selectedPlan?.sqft !== undefined && ` · ${selectedPlan.sqft} sq ft`}</dd></div><div><dt className="font-semibold">Amenities</dt><dd className="mt-1 text-ink-soft">{apartment.amenities.length ? apartment.amenities.join(" · ") : "Not disclosed in the available sources"}</dd></div><div><dt className="font-semibold">Commute to UT Tower</dt><dd className="mt-1 text-ink-soft">Walk: {apartment.walking ? `${apartment.walking.formattedDuration} · ${apartment.walking.formattedDistance}` : "Unavailable"}<br />Bike: {apartment.cycling ? `${apartment.cycling.formattedDuration} · ${apartment.cycling.formattedDistance}` : "Unavailable"}</dd></div><div><dt className="font-semibold">Lease terms</dt><dd className="mt-1 text-ink-soft">{leaseTerms(apartment)}</dd></div></dl>
+        <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6" aria-labelledby="detail-property"><h2 id="detail-property" className="text-xl font-semibold">The property</h2><dl className="mt-4 space-y-4 text-sm leading-relaxed"><div><dt className="font-semibold">Floor plan</dt><dd className="mt-1 text-ink-soft">{apartment.floorPlan.beds ?? "?"} beds · {apartment.floorPlan.baths ?? "?"} baths{selectedPlan?.sqft !== null && selectedPlan?.sqft !== undefined && ` · ${selectedPlan.sqft} sq ft`}</dd></div><div><dt className="font-semibold">Amenities</dt><dd className="mt-1 text-ink-soft">{apartment.amenities.length ? apartment.amenities.join(" · ") : "Not disclosed in the available sources"}</dd></div><div><dt className="font-semibold">Commute to UT Tower</dt><dd className="mt-1 text-ink-soft">Walk: {apartment.walking ? `${apartment.walking.formattedDuration} · ${apartment.walking.formattedDistance}` : "Unavailable"}<br />Bike: {apartment.cycling ? `${apartment.cycling.formattedDuration} · ${apartment.cycling.formattedDistance}` : "Unavailable"}</dd></div><div><dt className="font-semibold">Lease terms</dt><dd className="mt-1 text-ink-soft">{apartment.lease.dates ?? "Confirm lease dates and terms with the property."}</dd></div></dl>
           {profile?.website && /^https?:\/\//i.test(profile.website) && <a href={profile.website} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-sm text-clay-dark underline underline-offset-4">Visit the property website</a>}
         </section>
       </div>

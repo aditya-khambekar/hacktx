@@ -101,15 +101,9 @@ export function normalizeLabels(value: unknown): string[] | null {
 
 export function readProfile(value: unknown): ApartmentProfile | null {
   if (!isRecord(value)) return null;
-  const { amenities, propertyFees, lease, ...base } = value;
+  const { amenities, propertyFees, ...base } = value;
   if (amenities !== undefined && !array(object({ name: nonempty, sourceUrl: nonempty }))(amenities)) return null;
   if (propertyFees !== undefined && !array(object({ name: nonempty, amount: nullable(nonnegative), cadence: nullable(string), sourceUrl: nonempty }))(propertyFees)) return null;
-  if (lease !== undefined && !object({
-    months: nullable(count),
-    type: nullable(string),
-    dates: nullable(string),
-    sourceUrl: nullable(string),
-  })(lease)) return null;
   const plans = Array.isArray(base.floorplans) ? base.floorplans.map((plan) => {
     if (!isRecord(plan)) return plan;
     const { rentBasis, ...original } = plan;
