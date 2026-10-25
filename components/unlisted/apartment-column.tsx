@@ -114,8 +114,9 @@ type ApartmentColumnProps = {
 export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, highlight, budget, saved, onToggleSaved, onRemove, className = "" }: ApartmentColumnProps) {
   const [planIndex, setPlanIndex] = useState(0);
   const profile = original.profile;
-  const selectedPlanIndex = profile?.floorplans[planIndex] ? planIndex : 0;
-  const selectedPlan = profile?.floorplans[selectedPlanIndex];
+  const availablePlans = profile?.floorplans.filter((plan) => !(plan.beds === 0 && plan.baths === 0)) ?? [];
+  const selectedPlanIndex = availablePlans[planIndex] ? planIndex : 0;
+  const selectedPlan = availablePlans[selectedPlanIndex];
   const apartment = profile && selectedPlan ? { ...original, ...toComparisonApartment({ ...profile, floorplans: [selectedPlan] }), databaseId: original.databaseId, researchStatus: original.researchStatus, researchError: original.researchError } : original;
   const costs = summarizeCosts(apartment);
   const basicRows = rows.filter((row) => row === "campus" || row === "floorplan");
@@ -174,7 +175,6 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
         </p>
       </div>
 
-      {profile?.curated && <p className="px-4 pt-2 text-[10px] font-medium text-clay-dark">Curated demo data · {profile.curated.checkedAt}</p>}
       <div className="border-b border-line px-4 pt-3.5 pb-3">
         {!!profile && profile.floorplans.length > 1 && <label className="mb-3 block text-xs font-medium">Floor plan<select value={selectedPlanIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-1 min-h-10 w-full rounded-md border border-line bg-paper px-2 text-sm">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baseRent === null ? "Rent not listed" : formatUsd(plan.baseRent)}</option>)}</select></label>}
         <p className="mb-2 text-xs text-ink-soft">{apartment.priceKind === "starting at" ? "Starting base rent" : "Listed base rent"}</p>

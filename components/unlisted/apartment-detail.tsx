@@ -12,8 +12,9 @@ import type { ComparisonApartment } from "./types";
 export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apartment: ComparisonApartment; onBack: () => void; onRetry: () => void }) {
   const [planIndex, setPlanIndex] = useState(0);
   const profile = original.profile;
-  const selectedPlanIndex = profile?.floorplans[planIndex] ? planIndex : 0;
-  const selectedPlan = profile?.floorplans[selectedPlanIndex];
+  const availablePlans = profile?.floorplans.filter((plan) => !(plan.beds === 0 && plan.baths === 0)) ?? [];
+  const selectedPlanIndex = availablePlans[planIndex] ? planIndex : 0;
+  const selectedPlan = availablePlans[selectedPlanIndex];
   const apartment = selectedPlan && profile ? { ...original, ...toComparisonApartment({ ...profile, floorplans: [selectedPlan] }) } : original;
   const loading = original.researchStatus === "loading";
   return <div className="mx-auto w-full max-w-6xl space-y-6">

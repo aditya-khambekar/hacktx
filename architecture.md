@@ -35,8 +35,8 @@ Only unconditional, fixed required charges enter calculated required subtotals.
 Optional, conditional, alternative, annual, usage-based, range and percentage fees
 remain separately visible with their conditions. Deposits are refundable only when
 explicitly stated. Per-installment prices must retain that label. Never assume that
-an unconfirmed rent basis means per person. Missing values remain unknown; dated
-curated records are labeled “Curated demo data”, not live availability or quotes.
+an unconfirmed rent basis means per person. Missing values remain unknown. All entries share the same presentation without
+curated or demo labels; dated records must not be described as live availability or quotes.
 
 Bedroom priorities also project the card/detail floor-plan menus onto the exact
 selected bedroom count. Displayed rent and fees use a remaining plan. Filtering
