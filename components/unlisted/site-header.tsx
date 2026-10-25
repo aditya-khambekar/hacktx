@@ -1,7 +1,8 @@
 "use client";
 
 import { AppHeader } from "@/components/app-header";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { AccountMenu } from "./account-menu";
 import { ChevronDown, Close, Cloud, Menu, Share } from "./icons";
 
 export type WorkspaceView = "workspace" | "saved";
@@ -22,14 +23,6 @@ type SiteHeaderProps = {
   user?: HeaderUser | null;
 };
 
-function userInitials(user: HeaderUser | null | undefined) {
-  const source = user?.name?.trim() || user?.email?.trim() || "";
-  if (!source) return "?";
-  const parts = source.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
-  return source.slice(0, 2).toUpperCase();
-}
-
 const NAV: Array<{ id: WorkspaceView; label: string }> = [
   { id: "workspace", label: "My workspace" },
   { id: "saved", label: "Saved places" },
@@ -37,13 +30,7 @@ const NAV: Array<{ id: WorkspaceView; label: string }> = [
 
 export function SiteHeader({ view, onViewChange, savedCount, saveStatus, onShare, shareLabel, user }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
-  const showPhoto = Boolean(user?.image) && !imageFailed;
-  const accountLabel = user?.name?.trim() || user?.email?.trim() || "Signed-in user";
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [user?.image]);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const navItems = NAV.map((item) => {
     const active = item.id === view;
@@ -100,25 +87,15 @@ export function SiteHeader({ view, onViewChange, savedCount, saveStatus, onShare
             <Share size={16} />
             <span aria-live="polite">{shareLabel}</span>
           </button>
-          {showPhoto ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Google avatar URL from session
-            <img
-              src={user!.image!}
-              alt=""
-              width={34}
-              height={34}
-              referrerPolicy="no-referrer"
-              className="h-[34px] w-[34px] shrink-0 rounded-full object-cover ring-1 ring-line"
-              title={accountLabel}
-              onError={() => setImageFailed(true)}
+          {user ? (
+            <AccountMenu
+              user={user}
+              open={accountOpen}
+              onOpenChange={(next) => {
+                setAccountOpen(next);
+                if (next) setMenuOpen(false);
+              }}
             />
-          ) : user ? (
-            <span
-              className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-sage text-[11px] font-semibold text-sage-ink"
-              title={accountLabel}
-            >
-              {userInitials(user)}
-            </span>
           ) : null}
           <button
             type="button"
@@ -126,7 +103,13 @@ export function SiteHeader({ view, onViewChange, savedCount, saveStatus, onShare
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => {
+              setMenuOpen((open) => {
+                const next = !open;
+                if (next) setAccountOpen(false);
+                return next;
+              });
+            }}
           >
             {menuOpen ? <Close size={20} /> : <Menu size={20} />}
           </button>
