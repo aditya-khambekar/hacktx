@@ -26,7 +26,7 @@ terms, amenities and complete fee schedule. Each curated floor plan also carries
 its original row in `floorplans[].curated`, preserving ranges, installment cadence,
 eligibility, occupancy, reported totals and floor-plan image URLs. These optional
 fields are regenerated server-side from the bundled data, never trusted from a
-client submission. Non-curated profiles keep the existing shape and snippet rules.
+client submission. Non-curated profiles retain source-validated search and official-page research.
 Curated source URLs use the supplied official URL when available; otherwise use a
 `curated:<record-id>` source identifier and display “User-supplied pricing” without
 inventing a public source URL.
@@ -267,7 +267,11 @@ gl=us
 num=8
 ```
 
-Pass `organic_results[].title`, `organic_results[].link`, and `organic_results[].snippet` into the `ListingFacts` call. Nothing else.
+Use SerpAPI organic results to discover official floor-plan, pricing and fee URLs. Starting from the Maps `website`, `lib/official-pages.ts` reads public HTML on the official property's origin (including a validated homepage redirect). Follow actual floor-plan/pricing/fee/calculator links, never application or sign-in flows. At most five pages including failures; each GET has a 12-second timeout and 2 MB body limit. Validate and pin public DNS addresses on every request and redirect; reject private addresses, credentials and unsafe protocols. No browser automation or script execution on the server.
+
+Pass search snippets and cleaned official page evidence to `ListingFacts`, each with an internal `id`, original `link`, `title`, `snippet` (source text), and `sourceKind`. Plan cards are separate evidence blocks. Source text is untrusted data. Strip scripts, navigation, duplicated modals and struck-out prices. Keep source URLs, never API keys. A blocked or unavailable page falls back to supported search evidence and nulls; it does not invent a price.
+
+Public Landmark floor-plan cards and the site's embedded `window.feeCalculatorData` JSON have a deterministic reader. Parse JSON without executing JavaScript. Prefer the currently displayed base price over raw calculator rates (which may precede concessions). Keep separate prices for private/shared configurations. Match fee records by plan, room configuration and lease/start window. Do not pick between ambiguous lease terms. Negative concessions are not added again to already discounted base rent.
 
 3. Reviews. First page:
 
@@ -325,7 +329,7 @@ Prompt rules, verbatim in intent:
 - `reason` is a short clause naming the cue in the text.
 - Star value is not a reason to choose `tour`.
 
-Join labels onto reviews by `id`. A missing or unknown id is `unclear`.
+For the model input, replace opaque provider review IDs with request-local references (`r0`, `r1`, …). Join returned labels using that reference mapping, while retaining each original provider ID and link on the stored review. This avoids generating thousands of unnecessary ID tokens. Missing or unknown references are `unclear`; request-local references are never persisted as provider IDs. Reasons are short clauses of at most eight words.
 
 5. Directions, two calls. `start_coords` is `{latitude},{longitude}` from `place_results.gps_coordinates`. If coordinates are missing, use `start_addr` set to `place_results.address` and omit `start_coords`. `end_coords` is always `30.2862,-97.7394`.
 
@@ -347,7 +351,7 @@ Cycling: the same query with `travel_mode=1`.
 
 From `directions[0]` copy `distance` (meters), `duration` (seconds), `formatted_distance`, `formatted_duration`, and `travel_mode`. If `directions` is missing or empty, that mode is `null`. Do not read `trips` or `durations`.
 
-6. `ListingFacts` structured call over the organic results only. Schema:
+6. `ListingFacts` structured call over search snippets and official page evidence. The base floor-plan schema is:
 
 ```json
 {
@@ -388,7 +392,9 @@ From `directions[0]` copy `distance` (meters), `duration` (seconds), `formatted_
 }
 ```
 
-Prompt rule: a rent or fee is present only when that number appears in a snippet. `sourceUrl` is the `link` of that organic result. Otherwise null. Drop any floor plan whose `sourceUrl` is null or is not one of the links that were passed in.
+The structured schema additionally requires `sourceId` on plans and property-wide fees, matching the exact evidence block and its `sourceUrl`. Plan properties also include nullable `rentBasis` (`per person` or `per unit`), `publishedMonthlyTotal`, `priceKind` (`starting at`, `exact`, `range`), and `leaseTerm`. Fees include `applies` (`required`, `optional`, `conditional`) and nullable `conditions`. Top-level `amenities` contains exact source phrases with source URLs, and `propertyFees` contains sourced property-wide fee records.
+
+Prompt rule: a number is present only when it appears in that specific evidence block. `baseRent` must be explicitly labeled base rent; inclusive prices are kept in `publishedMonthlyTotal` only when explicitly inclusive of mandatory fees. Do not borrow values from other plans or lease periods. Missing facts remain null. Drop plans with an unknown source ID/URL. Code validates model amounts against the cited text; the deterministic official reader takes precedence when available.
 
 `lib/rating.ts` exports `honestRating(reviews)`. It ignores the model for the math.
 
@@ -469,7 +475,11 @@ type RouteLeg = {
 
 `mapsUrl` is `https://www.google.com/maps/search/?api=1&query_place_id={placeId}`.
 
-`sources` lists every SerpAPI search URL used for that profile, including both directions calls.
+`sources` lists every SerpAPI search URL used for that profile, including both directions calls, plus official pages successfully read.
+
+Profiles also support optional `pricingVersion: 1`, `amenities`, and `propertyFees`. Floor plans support `rentBasis`, `publishedMonthlyTotal`, `priceKind`, `leaseTerm`, and `sourceKind` (`official page` or `search snippet`). Fees support `sourceUrl`, `applies`, and `conditions`. `lib/listing-types.ts` defines these shared fields; API validation accepts legacy profiles and validates every extension. The shared research cache requires the current pricing version; an explicit Refresh pricing & research action rebuilds saved profiles while keeping labels.
+
+The UI labels starting prices and lease periods, displays cents, and separates base rent from inclusive monthly installments. A published inclusive price already includes mandatory monthly charges, so never add itemized fees to it again. Optional/conditional charges are shown separately and excluded from calculated subtotals. Missing rent means it was not found in the available sources, not that the property does not publish it.
 
 `reviews` includes tour and unclear rows, not only rows in the average.
 
@@ -571,11 +581,15 @@ Walk and bike times are to the UT Tower, not the nearest classroom. A null leg i
 - `build_profile` against a saved SerpAPI fixture, including one walking and one cycling `directions` payload. Stored meters, seconds, and formatted strings match `directions[0]`. A floor plan whose `sourceUrl` was not in `organic_results[].link` is dropped.
 - Sign in, ask for a pet-friendly 2-bed under a stated budget, add one card, apply a label from chat, expand it. Tour reviews are grouped apart from the average. Walk and bike time are shown.
 
+## Research responsiveness
+
+Structured profile calls use a 90-second timeout and no automatic retries; failures preserve the saved profile. The UI displays a research status message and bounds a research request to 150 seconds, clearing the loading state with a retry message if it times out. Model phase durations are logged without keys, source text, or user identifiers.
+
 ## Quotas and failures
 
-Each full profile is one place call, one Google search, one or two review pages, and two directions calls. Three suggestions plus their web checks can spend most of `MAX_SERP_CALLS`.
+Each full profile is one place call, three Google searches (floor plans, amenities, fees), one or two review pages, and two directions calls, plus up to five direct official-page GETs. Direct page reads do not use SerpAPI credits. The existing 24-call SerpAPI budget still applies. Three suggestions plus their web checks can spend most of `MAX_SERP_CALLS`.
 
-Floor plans and fees exist only when a snippet stated them. The honest rating is over the fetched pages, and only over reviews labeled `apartment`. A solicited review that never mentions a tour can be kept. A resident comment that is about tour day can be set aside. The reason string is what the UI shows.
+Floor plans and fees exist only when supported by cited search evidence or official page content. The honest rating is over the fetched pages, and only over reviews labeled `apartment`. A solicited review that never mentions a tour can be kept. A resident comment that is about tour day can be set aside. The reason string is what the UI shows.
 
 ## Apartment detail location map
 

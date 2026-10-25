@@ -1,5 +1,6 @@
 import "server-only";
 
+import { PRICING_VERSION } from "./listing-types";
 import { prisma } from "./db";
 import { readProfile } from "./apartments";
 import { buildDiscoveredProfile } from "./discovery";
@@ -16,7 +17,7 @@ export async function researchApartment(placeId: string, force = false): Promise
       WHERE "placeId" = ${placeId} AND "expiresAt" > NOW() LIMIT 1
     `;
     const cached = rows[0] ? readProfile(rows[0].profile) : null;
-    if (cached && Array.isArray(cached.amenities) && Array.isArray(cached.propertyFees) && cached.placeId === placeId) return { ...cached, labels: [] };
+    if (cached && cached.pricingVersion === PRICING_VERSION && Array.isArray(cached.amenities) && Array.isArray(cached.propertyFees) && cached.placeId === placeId) return { ...cached, labels: [] };
   }
   const active = pending.get(placeId);
   if (active) return active;

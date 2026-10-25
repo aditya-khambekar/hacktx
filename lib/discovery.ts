@@ -25,8 +25,10 @@ export type ApartmentSearchResults = {
   nextStart: number | null;
 };
 
+type VerificationFailure = "missing_name" | "outside_ut_area" | "non_residential_listing" | "no_matching_web_result";
+
 export class DiscoveryError extends Error {
-  constructor(readonly code: string, readonly status: number) { super(code); }
+  constructor(readonly code: string, readonly status: number, readonly reason?: VerificationFailure) { super(code); }
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -121,7 +123,9 @@ export async function buildDiscoveredProfile(placeId: string) {
   if (!place) throw new DiscoveryError("place_not_found", 404);
   const details = record(place);
   const title = text(details.title);
-  if (!title || !nearUT(details) || isNonProperty(details)) throw new DiscoveryError("listing_unverified", 422);
+  if (!title) throw new DiscoveryError("listing_unverified", 422, "missing_name");
+  if (!nearUT(details)) throw new DiscoveryError("listing_unverified", 422, "outside_ut_area");
+  if (isNonProperty(details)) throw new DiscoveryError("listing_unverified", 422, "non_residential_listing");
 
   // Maps still verifies the selected place. Curated facts remain usable if the
   // separate model/review research fails; never fabricate missing live results.
@@ -149,21 +153,36 @@ export async function buildDiscoveredProfile(placeId: string) {
   checkBudget(results);
   if (!Array.isArray(results)) throw new DiscoveryError("serp_budget_exhausted", 503);
   const name = title.toLowerCase();
-  const verified = results.some((result) => [result.title, result.snippet].some((value) =>
+  const matchesListing = (result: unknown) => [record(result).title, record(result).snippet].some((value) =>
     typeof value === "string" && value.toLowerCase().includes(name) && /\baustin\b/i.test(value),
-  ));
-  if (!verified) throw new DiscoveryError("listing_unverified", 422);
+  );
+  const queries = [`${title} West Campus Austin apartment`];
+  let verified = results.some(matchesListing);
+  if (!verified) {
+    // Keep the prescribed search first, then retry a precise name once if it missed.
+    const query = `"${title.replace(/"/g, "")}" Austin`;
+    const retry = await serpSearch({ engine: "google", q: query, hl: "en", gl: "us", num: "5" });
+    checkBudget(retry);
+    queries.push(query);
+    const organic = record(retry).organic_results;
+    verified = Array.isArray(organic) && organic.some(matchesListing);
+  }
+  if (!verified) throw new DiscoveryError("listing_unverified", 422, "no_matching_web_result");
   const profile = await buildProfile(placeId);
-  const verificationUrl = new URL("https://serpapi.com/search.json");
-  verificationUrl.search = new URLSearchParams({
-    engine: "google", q: `${title} West Campus Austin apartment`, hl: "en", gl: "us", num: "5",
-  }).toString();
-  return { ...profile, sources: [...new Set([...profile.sources, verificationUrl.toString()])] };
+  const verificationUrls = queries.map((query) => {
+    const url = new URL("https://serpapi.com/search.json");
+    url.search = new URLSearchParams({ engine: "google", q: query, hl: "en", gl: "us", num: "5" }).toString();
+    return url.toString();
+  });
+  return { ...profile, sources: [...new Set([...profile.sources, ...verificationUrls])] };
 }
 
 export function discoveryFailure(error: unknown, fallback: string, status = 502) {
   const code = error instanceof DiscoveryError ? error.code : fallback;
-  console.error("[discovery]", { operation: fallback, code });
+  console.error("[discovery]", {
+    operation: fallback, code,
+    ...(error instanceof DiscoveryError && error.reason ? { reason: error.reason } : {}),
+  });
   return Response.json({ error: code }, {
     status: error instanceof DiscoveryError ? error.status : status,
     headers: { "Cache-Control": "private, no-store" },

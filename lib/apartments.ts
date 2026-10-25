@@ -102,16 +102,33 @@ export function normalizeLabels(value: unknown): string[] | null {
 
 export function readProfile(value: unknown): ApartmentProfile | null {
   if (!isRecord(value)) return null;
-  const { amenities, propertyFees, curated: _curated, ...base } = value;
+  const { amenities, propertyFees, pricingVersion, curated: _curated, ...base } = value;
   void _curated;
+  if (pricingVersion !== undefined && pricingVersion !== 1) return null;
+  const originalFee = (fee: unknown) => {
+    if (!isRecord(fee)) return null;
+    const { sourceUrl, applies, conditions, ...original } = fee;
+    if (sourceUrl !== undefined && !nonempty(sourceUrl) ||
+        applies !== undefined && (typeof applies !== "string" || !["required", "optional", "conditional"].includes(applies)) ||
+        conditions !== undefined && !nullable(string)(conditions)) return null;
+    return original;
+  };
   if (amenities !== undefined && !array(object({ name: nonempty, sourceUrl: nonempty }))(amenities)) return null;
-  if (propertyFees !== undefined && !array(object({ name: nonempty, amount: nullable(nonnegative), cadence: nullable(string), sourceUrl: nonempty }))(propertyFees)) return null;
+  if (propertyFees !== undefined && (!Array.isArray(propertyFees) || !propertyFees.every((fee) => {
+    const original = originalFee(fee);
+    return isRecord(fee) && nonempty(fee.sourceUrl) && object({ name: nonempty, amount: nullable(nonnegative), cadence: nullable(string) })(original);
+  }))) return null;
   const plans = Array.isArray(base.floorplans) ? base.floorplans.map((plan) => {
     if (!isRecord(plan)) return plan;
-    const { rentBasis, curated: _planCurated, ...original } = plan;
+    const { rentBasis, publishedMonthlyTotal, priceKind, leaseTerm, sourceKind, curated: _planCurated, ...original } = plan;
     void _planCurated;
+    if (publishedMonthlyTotal !== undefined && !nullable(nonnegative)(publishedMonthlyTotal) ||
+        publishedMonthlyTotal !== undefined && publishedMonthlyTotal !== null && typeof plan.baseRent === "number" && Number(publishedMonthlyTotal) < plan.baseRent ||
+        priceKind !== undefined && priceKind !== null && (typeof priceKind !== "string" || !["starting at", "exact", "range"].includes(priceKind)) ||
+        leaseTerm !== undefined && !nullable(string)(leaseTerm) ||
+        sourceKind !== undefined && sourceKind !== "official page" && sourceKind !== "search snippet") return null;
     if (rentBasis !== undefined && rentBasis !== null && rentBasis !== "per person" && rentBasis !== "per unit") return null;
-    return original;
+    return { ...original, fees: Array.isArray(original.fees) ? original.fees.map(originalFee) : original.fees };
   }) : base.floorplans;
   if (!profileShape({ ...base, floorplans: plans })) return null;
   const profile = value as ApartmentProfile;

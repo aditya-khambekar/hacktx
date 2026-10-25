@@ -299,24 +299,26 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
     if (researchingIds.current.has(apartment.id)) return;
     researchingIds.current.add(apartment.id);
     setShortlist((current) => current.map((item) => item.id === apartment.id ? { ...item, researchStatus: "loading", researchError: undefined } : item));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 150_000);
     try {
       const url = force && apartment.databaseId
         ? `/api/apartments/${encodeURIComponent(apartment.databaseId)}/refresh`
         : `/api/apartments/discover/${encodeURIComponent(apartment.id)}`;
-      const response = await fetch(url, { method: "POST" });
+      const response = await fetch(url, { method: "POST", signal: controller.signal });
       if (!response.ok) throw new Error(response.status === 401 ? "Sign in to research and save this apartment." : "Research failed. Your previous information is kept. Try again.");
       const result = await response.json();
       let saved = result;
       if (!(force && apartment.databaseId)) {
-        const save = await fetch("/api/apartments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profile: result }) });
+        const save = await fetch("/api/apartments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profile: result }), signal: controller.signal });
         if (!save.ok) throw new Error("Couldn’t save the research. Please try again.");
         saved = await save.json();
       }
       const updated = { ...toComparisonApartment(saved.profile), databaseId: saved.id, researchStatus: "ready" as const };
       setShortlist((current) => current.map((item) => item.id === apartment.id ? updated : item));
     } catch (failure) {
-      setShortlist((current) => current.map((item) => item.id === apartment.id ? { ...item, researchStatus: "error", researchError: failure instanceof Error ? failure.message : "Research failed. Try again." } : item));
-    } finally { researchingIds.current.delete(apartment.id); }
+      setShortlist((current) => current.map((item) => item.id === apartment.id ? { ...item, researchStatus: "error", researchError: controller.signal.aborted ? "Research took too long. Your previous information is kept. Please try again." : failure instanceof Error ? failure.message : "Research failed. Try again." } : item));
+    } finally { clearTimeout(timeout); researchingIds.current.delete(apartment.id); }
   }
 
   async function share() {

@@ -1,59 +1,6 @@
-import type { CuratedDetails, CuratedPlan } from "@/lib/curated-types";
-// Mirrors the ApartmentProfile in architecture.md. Null means the source did not say.
-export type RouteLeg = {
-  distanceMeters: number;
-  durationSeconds: number;
-  formattedDistance: string;
-  formattedDuration: string;
-};
-
-export type ApartmentProfile = {
-  curated?: CuratedDetails;
-  placeId: string;
-  name: string;
-  address: string | null;
-  mapsUrl: string;
-  website: string | null;
-  phone: string | null;
-  labels: string[];
-  fetchedAt: string;
-  googleRating: number | null;
-  googleReviewCount: number | null;
-  honestRating: number | null;
-  honestCount: number;
-  excludedTour: number;
-  unclearCount: number;
-  campus: {
-    destination: "UT Tower";
-    endCoords: "30.2862,-97.7394";
-    walking: RouteLeg | null;
-    cycling: RouteLeg | null;
-  };
-  floorplans: Array<{
-    curated?: CuratedPlan;
-    name: string | null;
-    beds: number | null;
-    baths: number | null;
-    sqft: number | null;
-    baseRent: number | null;
-    rentBasis?: "per person" | "per unit" | null;
-    sourceUrl: string | null;
-    fees: Array<{ name: string; amount: number | null; cadence: string | null }>;
-  }>;
-  reviews: Array<{
-    id: string;
-    rating: number;
-    text: string;
-    date: string | null;
-    author: string | null;
-    link: string | null;
-    about: "tour" | "apartment" | "unclear";
-    reason: string;
-  }>;
-  amenities?: Array<{ name: string; sourceUrl: string }>;
-  propertyFees?: Array<{ name: string; amount: number | null; cadence: string | null; sourceUrl: string }>;
-  sources: string[];
-};
+import type { ApartmentProfile } from "../../lib/profile";
+export type { ApartmentProfile, RouteLeg } from "../../lib/profile";
+import type { RouteLeg } from "../../lib/profile";
 
 export type FeeCadence = "monthly" | "one-time" | "unknown";
 
@@ -66,6 +13,10 @@ export type Fee = {
   cadence: FeeCadence;
   basis: FeeBasis;
   refundable?: boolean;
+  applies?: "required" | "optional" | "conditional";
+  conditions?: string | null;
+  sourceUrl?: string;
+  timing?: string | null;
 };
 
 /** The view model one comparison column renders. */
@@ -83,6 +34,9 @@ export type ComparisonApartment = {
   advertisedRent: number | null;
   rentBasis: "per person" | "per unit" | "basis unknown";
   rentSourceUrl?: string | null;
+  publishedMonthlyTotal?: number | null;
+  priceKind?: "starting at" | "exact" | "range" | null;
+  sourceKind?: "official page" | "search snippet";
   floorPlan: { beds: number | null; baths: number | null; note: string | null };
   walking: RouteLeg | null;
   cycling: RouteLeg | null;

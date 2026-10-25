@@ -7,8 +7,10 @@ const usd = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const usdCents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export function formatUsd(amount: number) {
-  return usd.format(amount);
+  return (Number.isInteger(amount) ? usd : usdCents).format(amount);
 }
 
 export type CostSummary = {
@@ -23,20 +25,26 @@ export type CostSummary = {
   oneTimeUnknownCount: number;
   refundableTotal: number;
   unclassifiedFees: Fee[];
+  conditionalFees: Fee[];
+  usesPublishedTotal: boolean;
 };
 
 export function summarizeCosts(apartment: ComparisonApartment): CostSummary {
-  const monthlyFees = apartment.fees.filter((fee) => fee.cadence === "monthly");
-  const oneTimeFees = apartment.fees.filter((fee) => fee.cadence === "one-time");
+  const included = apartment.fees.filter((fee) => fee.applies !== "optional" && fee.applies !== "conditional");
+  const monthlyFees = included.filter((fee) => fee.cadence === "monthly");
+  const oneTimeFees = included.filter((fee) => fee.cadence === "one-time");
+  const usesPublishedTotal = apartment.publishedMonthlyTotal !== null && apartment.publishedMonthlyTotal !== undefined;
   const sum = (fees: Fee[]) => fees.reduce((total, fee) => total + (fee.amount ?? 0), 0);
 
   return {
-    unclassifiedFees: apartment.fees.filter((fee) => fee.cadence === "unknown"),
+    unclassifiedFees: included.filter((fee) => fee.cadence === "unknown"),
+    conditionalFees: apartment.fees.filter((fee) => fee.applies === "optional" || fee.applies === "conditional"),
+    usesPublishedTotal,
     rent: apartment.advertisedRent,
     monthlyFees,
     oneTimeFees,
-    monthlyTotal: apartment.advertisedRent === null ? null : apartment.advertisedRent + sum(monthlyFees),
-    monthlyHasEstimate: monthlyFees.some((fee) => fee.basis === "estimated"),
+    monthlyTotal: usesPublishedTotal ? apartment.publishedMonthlyTotal! : apartment.advertisedRent === null ? null : Math.round((apartment.advertisedRent + sum(monthlyFees)) * 100) / 100,
+    monthlyHasEstimate: !usesPublishedTotal && monthlyFees.some((fee) => fee.basis === "estimated"),
     monthlyUnknownCount: monthlyFees.filter((fee) => fee.amount === null).length,
     oneTimeTotal: sum(oneTimeFees),
     oneTimeUnknownCount: oneTimeFees.filter((fee) => fee.amount === null).length,
@@ -46,7 +54,7 @@ export function summarizeCosts(apartment: ComparisonApartment): CostSummary {
 
 function normalizeCadence(cadence: string | null): FeeCadence | null {
   const value = cadence?.toLowerCase() ?? "";
-  if (/month|\/mo|recurring|per installment/.test(value)) return "monthly";
+  if (/month|\/mo|recurring|installment/.test(value)) return "monthly";
   if (/once|one[- ]time|move[- ]in|upfront|deposit|application/.test(value)) return "one-time";
   return null;
 }
@@ -68,7 +76,11 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
       basis: fee.amount === null ? "unknown" : "published",
       refundable: profile.curated
         ? profile.curated.fees.some((original) => original.name === fee.name && /refundable/i.test(original.name) && !/non-?refundable/i.test(original.name))
-        : /deposit/i.test(fee.name) && !/non-?refundable/i.test(fee.name),
+        : /refundable/i.test(fee.conditions ?? "") && !/non-?refundable/i.test(fee.conditions ?? ""),
+      applies: fee.applies,
+      conditions: fee.conditions,
+      sourceUrl: fee.sourceUrl,
+      timing: fee.cadence,
     });
   }
 
@@ -83,11 +95,14 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     advertisedRent: plan?.baseRent ?? null,
     rentBasis: plan?.rentBasis ?? "basis unknown",
     rentSourceUrl: plan?.sourceUrl,
+    publishedMonthlyTotal: plan?.publishedMonthlyTotal,
+    priceKind: plan?.priceKind,
+    sourceKind: plan?.sourceKind,
     floorPlan: { beds: plan?.beds ?? null, baths: plan?.baths ?? null, note: plan?.name ?? null },
     walking: profile.campus.walking,
     cycling: profile.campus.cycling,
     amenities: [...new Set(profile.amenities?.map((amenity) => amenity.name) ?? [])],
-    lease: { months: null, type: profile.curated ? "Published term" : null, dates: profile.curated?.leaseStart && profile.curated.leaseEnd ? `${profile.curated.leaseStart} – ${profile.curated.leaseEnd}` : profile.curated?.leaseNotes?.split(".")[0] ?? null },
+    lease: { months: null, type: profile.curated ? "Published term" : null, dates: profile.curated?.leaseStart && profile.curated.leaseEnd ? `${profile.curated.leaseStart} – ${profile.curated.leaseEnd}` : profile.curated?.leaseNotes?.split(".")[0] ?? plan?.leaseTerm ?? null },
     honestRating: profile.honestRating,
     honestCount: profile.honestCount,
     excludedTour: profile.excludedTour,
