@@ -6,6 +6,7 @@ import { FeeBreakdown } from "./fee-breakdown";
 import { Bed, Calendar, ChevronDown, Close, Heart, Receipt, Sparkle, Tag, Walk } from "./icons";
 import { ApartmentReviews, RatingStars } from "./apartment-reviews";
 import { ListingPhoto } from "./listing-photo";
+import { ResearchStatus } from "./research-status";
 import type { ComparisonApartment } from "./types";
 
 export type AttributeRow = "campus" | "floorplan" | "amenities" | "lease" | "extras";
@@ -126,7 +127,7 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
       onClick={onOpen ? (event) => { if (!(event.target as HTMLElement).closest("button,a,summary,input,select,textarea,label")) onOpen(); } : undefined}
       className={`relative flex flex-col self-start overflow-hidden rounded-[10px] border border-line bg-paper-raised ${onOpen ? "cursor-pointer" : ""} ${className}`}
     >
-      {apartment.researchStatus === "loading" && <div className="absolute inset-0 z-20 flex items-start justify-center bg-stone-200/50 px-4 pt-24"><div role="status" className="sticky top-24 rounded-lg bg-stone-800 px-4 py-3 text-center text-sm font-semibold leading-relaxed text-white">Researching apartment details…<span className="mt-1 block text-xs font-normal">Checking pricing, fees, reviews, and commute.</span></div></div>}
+      {apartment.researchStatus === "loading" && <div className="absolute inset-0 z-20 flex items-start justify-center bg-stone-200/50 px-4 pt-24"><div className="sticky top-24"><ResearchStatus compact /></div></div>}
       <div inert={apartment.researchStatus === "loading"} className={`flex flex-col ${apartment.researchStatus === "loading" ? "grayscale opacity-40" : ""}`}>
       <div className="relative h-[152px] bg-sage">
         <ListingPhoto key={apartment.databaseId ?? apartment.id} tone={apartment.photoTone} name={apartment.name} databaseId={apartment.databaseId} />
@@ -167,7 +168,7 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
 
       <div className="border-b border-line px-4 pt-3.5 pb-3">
         {!!profile && profile.floorplans.length > 1 && <label className="mb-3 block text-xs font-medium">Floor plan<select value={planIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-1 min-h-10 w-full rounded-md border border-line bg-paper px-2 text-sm">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baseRent === null ? "Rent not listed" : formatUsd(plan.baseRent)}</option>)}</select></label>}
-        <p className="mb-2 text-xs text-ink-soft">Listed base rent</p>
+        <p className="mb-2 text-xs text-ink-soft">{apartment.priceKind === "starting at" ? "Starting base rent" : "Listed base rent"}</p>
         <p className="flex items-baseline gap-1.5">
           <span className="text-[26px] leading-none tabular-nums">
             {apartment.advertisedRent === null ? "—" : formatUsd(apartment.advertisedRent)}
@@ -205,7 +206,7 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
       </div>
       <div className="mx-4 mb-4 rounded-lg bg-sage/50 px-3 py-2.5 text-xs">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-ink">{(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known monthly subtotal" : costs.monthlyHasEstimate ? "Estimated monthly cost" : "Monthly cost"}</span>
+          <span className="text-ink">{costs.usesPublishedTotal ? "Inclusive starting price" : "Known monthly subtotal"}</span>
           <strong className="text-[16px] tabular-nums text-ink">{costs.monthlyTotal === null ? "Not available" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)}`}</strong>
         </div>
         <p className="mt-1 leading-relaxed text-ink-soft">{costs.monthlyUnknownCount ? `${costs.monthlyUnknownCount} monthly fee${costs.monthlyUnknownCount === 1 ? "" : "s"} still undisclosed. Total may be higher.` : `Known amounts only · ${apartment.rentBasis}. Additional fees may apply.`}</p>
@@ -213,7 +214,7 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
       {apartment.researchStatus === "error" && <div className="px-4 pb-3 text-xs"><p role="alert" className="text-clay-dark">{apartment.researchError}</p><button type="button" onClick={onRefresh} className="mt-2 min-h-10 rounded-md border border-line px-3 font-semibold">Retry research</button></div>}
       <div className="border-t border-line">
         <ModuleDetails title="Pricing breakdown" subtitle={`${apartment.fees.length} listed fees`}>
-          <p className="mb-3 text-xs leading-relaxed text-ink-soft">Prices come from search snippets, which may be outdated or promotional. They are not a verified quote for your lease dates.{apartment.fetchedAt && ` Researched ${new Date(apartment.fetchedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago" })}.`}</p>
+          <p className="mb-3 text-xs leading-relaxed text-ink-soft">Prices come from {apartment.sourceKind === "official page" ? "official property pages" : "search snippets"} and may change. They are not a verified quote for your lease dates.{apartment.fetchedAt && ` Researched ${new Date(apartment.fetchedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago" })}.`}</p>
           {apartment.rentSourceUrl && /^https?:\/\//i.test(apartment.rentSourceUrl) && <a href={apartment.rentSourceUrl} target="_blank" rel="noopener noreferrer" className="mb-3 inline-block text-xs text-clay-dark underline underline-offset-4">Check the price source</a>}
           <FeeBreakdown apartment={apartment} defaultOpen />
           <p className="mt-2 text-xs leading-relaxed text-ink-soft">Unknown charges are excluded from the totals. Confirm required fees and deposits with the property before signing.</p>

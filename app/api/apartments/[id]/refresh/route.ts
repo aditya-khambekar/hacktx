@@ -8,6 +8,7 @@ import {
   apartmentServerError,
   apartmentTransaction,
   profileData,
+  readProfile,
 } from "@/lib/apartments";
 
 export async function POST(
@@ -26,7 +27,9 @@ export async function POST(
     });
     if (!existing) return apartmentJson({ error: "not_found" }, 404);
 
-    const profile = await withSerpBudget(() => researchApartment(existing.placeId, true)).catch(() => null);
+    const built = await withSerpBudget(() => researchApartment(existing.placeId, true)).catch(() => null);
+    // Validate pricing extensions before replacing an existing saved profile.
+    const profile = built ? readProfile(built) : null;
     if (!profile) return apartmentJson({ error: "refresh_failed" }, 502);
 
     const apartment = await apartmentTransaction(async (tx) => {
