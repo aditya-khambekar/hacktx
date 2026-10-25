@@ -21,7 +21,7 @@ import {
   upsertDashboard,
 } from "./chat-client";
 import { ArrowUpRight, Plus, Receipt, Sparkle } from "./icons";
-import { PreferencesBar, budgetFromPreferences } from "./preferences-bar";
+import { PreferencesBar, budgetFromPreferences, matchesPreferences } from "./preferences-bar";
 import { introMessage, tradeoffSummary } from "./sample-assistant";
 import { SiteHeader, type HeaderUser, type WorkspaceView } from "./site-header";
 import { toComparisonApartment } from "./costs";
@@ -95,7 +95,8 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
     abortRef.current?.abort();
   }, []);
 
-  const visible = view === "saved" ? shortlist.filter((a) => savedIds.has(a.id)) : shortlist;
+  const board = view === "saved" ? shortlist.filter((a) => savedIds.has(a.id)) : shortlist;
+  const visible = board.filter((apartment) => matchesPreferences(apartment, preferences));
   const budget = budgetFromPreferences(preferences);
   const tradeoff = tradeoffSummary(shortlist);
 
@@ -330,9 +331,9 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
 
   const emptyState = (
     <div className="rounded-[10px] border border-dashed border-line bg-paper-raised px-6 py-14 text-center">
-      <p className="text-[20px]">{view === "saved" ? "Nothing saved yet." : "Your board is empty."}</p>
+      <p className="text-[20px]">{board.length ? "No apartments match your priorities." : view === "saved" ? "Nothing saved yet." : "Your board is empty."}</p>
       <p className="mx-auto mt-2 max-w-sm text-[13px] text-ink-soft">
-        {view === "saved"
+        {board.length ? "Try a higher budget or fewer must-haves, or clear your filters." : view === "saved"
           ? "Tap the heart on an apartment to keep it here."
           : "Add an apartment to compare rent, monthly fees, and move-in costs side by side."}
       </p>
@@ -369,7 +370,8 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
             <div><h2 className="text-2xl text-ink">Your apartment shortlist</h2><p className="mt-1 text-sm text-ink-soft">Find a specific place and compare it on your own terms.</p></div>
             <button type="button" onClick={() => setAddOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-clay px-4 text-sm font-semibold text-white hover:bg-clay-dark"><Plus size={17} />Add apartment</button>
           </div>
-          <PreferencesBar preferences={preferences} onChange={setPreferences} />
+          <div className="@container"><PreferencesBar preferences={preferences} onChange={setPreferences} /></div>
+          {!!preferences.length && <p role="status" className="text-xs text-ink-soft">Showing {visible.length} of {board.length} apartments</p>}
 
           <ApartmentComparison
             onOpen={openApartment}
