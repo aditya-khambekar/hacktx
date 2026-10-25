@@ -8,9 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "snowflake:seed": "node --conditions=react-server --env-file=.env scripts/seed-snowflake.mjs",
     "predev": "node scripts/copy-map-worker.mjs",
-    "prebuild": "node scripts/copy-map-worker.mjs"
+    "prebuild": "node scripts/copy-map-worker.mjs",
+    "snowflake:prepare": "node --conditions=react-server scripts/prepare-snowflake.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

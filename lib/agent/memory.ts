@@ -1,8 +1,8 @@
 import "server-only";
 
+import { withSnowflakeResearch } from "../snowflake-research";
 import { readProfile } from "../apartments";
 import { prisma } from "../db";
-import { withCuratedApartment } from "../curated-apartments";
 import type { ApartmentProfile, RouteLeg } from "../profile";
 
 /** Review bodies in the brief stay within this so a full shortlist still fits. */
@@ -41,7 +41,7 @@ export async function loadMemoryBrief(userId: string, preferences?: unknown): Pr
   const apartments: ApartmentProfile[] = [];
   for (const row of rows) {
     const profile = readProfile(row.profile);
-    if (profile) apartments.push(profile);
+    if (profile) apartments.push(await withSnowflakeResearch(profile));
   }
   return renderMemoryBrief(apartments, preferences);
 }
@@ -62,7 +62,7 @@ export function renderMemoryBrief(
     chips.length ? chips.map((chip) => `- ${chip}`).join("\n") : "None.",
     "",
     "## Saved apartments",
-    apartments.length ? apartments.map(withCuratedApartment).map(renderApartment).join("\n\n") : "None saved.",
+    apartments.length ? apartments.map(renderApartment).join("\n\n") : "None saved.",
   ].join("\n");
 }
 

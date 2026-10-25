@@ -75,7 +75,7 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
   const feeCount = apartment.fees.length;
   const rent = apartment.advertisedRent === null ? "Not found" : `${rentDisplay(apartment)} ${period}`;
 
-  const totalLabel = costs.usesPublishedTotal ? "Published inclusive starting price" : apartment.profile?.curated ? "Known recurring subtotal" : "Known monthly subtotal";
+  const totalLabel = costs.usesPublishedTotal ? "Published inclusive starting price" : "Known monthly subtotal";
   return (
     <section
       aria-label={`${title ?? "Fee breakdown"} for ${apartment.name}`}
@@ -125,7 +125,7 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
           {!!costs.conditionalFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Optional & conditional charges</GroupHeading><dl>{costs.conditionalFees.map((fee, index) => <Row key={`${fee.name}-${index}`} label={feeLabel(fee)} value={feeValue(fee, fee.cadence === "monthly" ? period : null)} />)}</dl><p className="mt-2 text-xs text-ink-soft">Shown separately; not added to the published inclusive price or known subtotals. Promotions or waivers may apply. Confirm your eligibility with the property.</p></div>}
           {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Other required charges</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Annual, usage-based and unclassified charges are excluded from the subtotals above.</p></div>}
           <dl className="mt-1 border-t border-line pt-0.5">
-            <Row label="Source" value={apartment.profile?.curated ? "Curated demo data" : apartment.isSample ? "Sample listing" : apartment.sourceKind === "official page" ? "Official property pages" : "Search snippets"} />
+            <Row label="Source" value={apartment.isSample ? "Sample listing" : apartment.sourceKind === "official page" ? "Official property pages" : "Search snippets"} />
           </dl>
         </div>
       ) : (

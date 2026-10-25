@@ -1,3 +1,4 @@
+import { withSnowflakeResearch } from "@/lib/snowflake-research";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
@@ -20,10 +21,11 @@ export async function GET() {
       select: apartmentFields,
       orderBy: { updatedAt: "desc" },
     });
-    return apartmentJson(apartments.map((row) => {
-      const profile = readProfile(row.profile);
-      return profile ? { ...row, name: profile.name, address: profile.address, profile } : row;
-    }));
+    return apartmentJson(await Promise.all(apartments.map(async (row) => {
+      const validated = readProfile(row.profile);
+      const profile = validated ? await withSnowflakeResearch(validated) : null;
+      return profile ? { ...row, name: profile.name, address: profile.address, honestRating:profile.honestRating, honestCount:profile.honestCount, excludedTour:profile.excludedTour, profile } : row;
+    })));
   } catch (error) {
     return apartmentServerError(error, "list");
   }

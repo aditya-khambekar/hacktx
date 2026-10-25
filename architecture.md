@@ -6,78 +6,63 @@ UT students sign in with Google, search West Campus apartments through a Muse Sp
 
 One Next.js app. Route Handlers are the backend. No Python service. No JSON files on disk. Secrets never reach the browser.
 
-## Curated apartment data for the hackathon
+## Researched apartment data
 
-The user-authorized workbook `outputs/unlisted-apartments-20261025/Unlisted-apartment-dataset.xlsx`
-is compiled into `lib/curated-apartment-data.ts`; the app imports that TypeScript data,
-not the workbook or a JSON file at runtime. `lib/curated-apartments.ts` overlays the
-curated floor plans, fees, amenities and lease terms for ION Austin, Union on San
-Antonio, Moontower and the eight separately addressed Block locations. No database
-migration, environment variable or automatic shortlist insertion is needed.
+Apartment prices, fees, amenities and lease terms come from the existing SerpAPI
+and official-page research flow. There is no bundled apartment dataset or automatic
+price overlay. Do not inject examples when live data is missing. Legacy profiles
+with `curated` metadata lose those floor plans/fees on validation and their pricing
+version is invalidated so the next research fetches actual source data.
 
-Match a known Austin property by explicit name aliases and, for The Block, its
-location name or street address. A generic Block result must not inherit one
-building's data. Never replace reviews, ratings, routes, user labels or place IDs.
-Apply the overlay to new profile builds and validated saved/cache reads, including
-the agent's board memory, so existing saves get current curated details on reload.
+Only unconditional fixed required charges enter calculated required subtotals.
+Optional, conditional, annual and usage-based fees remain separate. Published
+inclusive totals already include mandatory monthly fees; never add those twice.
+Unconfirmed rent basis and missing values stay unknown. Source prices are dated
+information, not availability guarantees or personalized quotes.
 
-`ApartmentProfile.curated` carries the trusted record's provenance, dated lease
-terms, amenities and complete fee schedule. Each curated floor plan also carries
-its original row in `floorplans[].curated`, preserving ranges, installment cadence,
-eligibility, occupancy, reported totals and floor-plan image URLs. These optional
-fields are regenerated server-side from the bundled data, never trusted from a
-client submission. Non-curated profiles retain source-validated search and official-page research.
-Curated source URLs use the supplied official URL when available; otherwise use a
-`curated:<record-id>` source identifier and display “User-supplied pricing” without
-inventing a public source URL.
-
-Only unconditional, fixed required charges enter calculated required subtotals.
-Optional, conditional, alternative, annual, usage-based, range and percentage fees
-remain separately visible with their conditions. Deposits are refundable only when
-explicitly stated. Per-installment prices must retain that label. Never assume that
-an unconfirmed rent basis means per person. Missing values remain unknown. All entries share the same presentation without
-curated or demo labels; dated records must not be described as live availability or quotes.
-
-Bedroom priorities also project the card/detail floor-plan menus onto the exact
-selected bedroom count. Displayed rent and fees use a remaining plan. Filtering
-never rewrites the saved profile; clearing the priority restores all plans.
+Bedroom priorities project floor-plan menus onto the exact selected bedroom count.
+Filtering does not rewrite the saved profile; clearing the priority restores plans.
 
 ## Constants
 
-### Criteria-based recommendations and Snowflake
+### Research caching, recommendations and Snowflake
 
-Muse calls `recommend_apartments` for requests that combine price, room counts,
-amenities or ranking. Arguments are validated data, never SQL. Defaults are base
-rent, per-person pricing, strict "under" a supplied maximum, resident-review score,
-at least one resident review, any room type, and no SMART-only options unless
-requested. The reply states these assumptions and the scope actually checked.
+`UNLISTED_RESEARCH` in the configured Snowflake database/schema stores complete
+public `ApartmentProfile` results, keyed by Google place ID in `PROPERTY_ID`, with
+`PROFILE VARIANT` and `FETCHED_AT TIMESTAMP_LTZ`. `npm run snowflake:prepare` creates
+only this table if missing. It never seeds example apartments or changes grants.
+The runtime role needs SELECT, INSERT and UPDATE; the one-time setup role also
+needs CREATE TABLE in the existing schema.
 
-Snowflake is the primary public catalogue query engine via its SQL REST API.
-`lib/snowflake.ts` accepts only configured Snowflake account hosts, binds values,
-bounds async polling and result partitions, and keeps all credentials server-side.
-Use `UNLISTED_FLOORPLANS` and `UNLISTED_RESEARCH` in the configured database/schema.
-`npm run snowflake:seed` uploads the bundled public catalogue, without user labels,
-accounts or conversations. UNLISTED_RESEARCH is an optional read-only public cache;
-fresh runtime research is written only to the existing Postgres ApartmentResearch cache. Snowflake errors or missing configuration
-fall back to public Postgres research and the curated catalogue. The result names
-the provider actually used; fallback must never be described as a Snowflake hit.
+`buildProfile` and the research endpoint check Snowflake before invoking the existing
+scraper/model. Successful full research is atomically upserted. Reuse results for
+24 hours; stale/missing records are researched on demand. Explicit refresh bypasses
+both Snowflake and Postgres caches. Failed research never replaces a cached result.
+A reviews-only recommendation pass must not overwrite complete pricing research.
+No scheduled refresh job is installed. Existing fresh public Postgres research can
+be copied into Snowflake on reuse. User labels, accounts, boards and conversations
+never enter the shared cache; a board read reapplies only that user's labels.
 
-The catalogue filters all matching plans before selecting a bounded research pool
-of up to eight properties. SerpAPI verifies known Austin identities and refreshes
-one review page per candidate. Muse labels reviews; code computes and ranks the
-resident scores. Recommendation passes omit route calls; the existing refresh flow populates routes. Each uncached candidate uses discovery, place verification and one reviews page. Retain the
-24-call per-message SerpAPI cap. Unknown price/basis, unknown requested amenities,
-and incomplete required recurring costs never become confirmed budget matches.
-Room counts and price constraints must hold for the SAME plan. Shared rooms,
-SMART restrictions, price ranges and promotions remain explicit. Highest rated
-means among the candidates checked, not all apartments in Austin.
+`lib/snowflake.ts` uses only the configured account host, binds values, bounds
+polling/partitions and keeps credentials server-side. A small process cache coalesces
+reads. Missing Snowflake configuration/outages fall back to public Postgres research
+and live scraping. Public-cache failures do not discard successful research.
 
-Server-only Snowflake configuration is optional so the existing application works
-without it: `SNOWFLAKE_ACCOUNT_HOST`, `SNOWFLAKE_TOKEN`, `SNOWFLAKE_TOKEN_TYPE`
-(PROGRAMMATIC_ACCESS_TOKEN by default), `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`,
-`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`. Never log or return tokens, connection
-strings, raw SQL-provider errors or another user's saved data. No new Postgres
-schema or standalone scraping service is required.
+Muse calls `recommend_apartments` with validated criteria, never SQL. Snowflake
+filters researched floor plans on price, bedrooms and bathrooms; code rechecks the
+same plan for amenities, basis, room type, SMART restrictions and required costs.
+Recommendations use actual cached research rather than a hardcoded catalogue.
+If no cached properties match, check at most two live candidates using the existing
+verified research flow, within the 24-call SerpAPI cap. Rank up to eight candidates
+and return up to three matches. Disclose the limited scope actually checked. Missing
+price/basis or incomplete required recurring costs cannot confirm a budget match.
+Resident scores exclude tour reviews and require the requested review evidence.
+
+Optional server-only configuration: `SNOWFLAKE_ACCOUNT_HOST`, `SNOWFLAKE_TOKEN`,
+`SNOWFLAKE_TOKEN_TYPE` (PROGRAMMATIC_ACCESS_TOKEN by default), `SNOWFLAKE_DATABASE`,
+`SNOWFLAKE_SCHEMA`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`. Never log raw provider
+errors, SQL, tokens or connection strings. Existing UNLISTED_FLOORPLANS seed rows
+are no longer read or written; no database deletion is required.
 
 Use these exact values.
 

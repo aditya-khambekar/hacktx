@@ -1,6 +1,6 @@
+import { readSnowflakeResearch, writeSnowflakeResearch } from "./snowflake-research";
 import type { CuratedDetails } from "./curated-types";
 import OpenAI from "openai";
-import { withCuratedApartment } from "./curated-apartments";
 import { honestRating } from "./rating";
 import { serpSearch } from "./serpapi";
 import { readOfficialPages, type ListingEvidence } from "./official-pages";
@@ -255,7 +255,34 @@ async function structuredCall(
   return result;
 }
 
+const profileBuilds = new Map<string, Promise<ApartmentProfile>>();
+
+/** Reuse the existing scraper's full result before making any external research calls. */
 export async function buildProfile(
+  placeId: string,
+  onStatus?: ProfileStatusHandler,
+  reviewOnly = false,
+  force = false,
+): Promise<ApartmentProfile> {
+  if (!placeId.trim()) throw new Error("placeId is required");
+  if (!force) {
+    const cached = await readSnowflakeResearch(placeId);
+    if (cached) return cached;
+  }
+  const key = `${placeId}:${reviewOnly ? "reviews" : "full"}`;
+  const active = profileBuilds.get(key);
+  if (active) return active;
+  const job = (async () => {
+    const profile = await researchProfile(placeId,onStatus,reviewOnly);
+    // A reviews-only pass must not replace a complete pricing profile.
+    if (!reviewOnly) await writeSnowflakeResearch(profile);
+    return profile;
+  })().finally(() => profileBuilds.delete(key));
+  profileBuilds.set(key,job);
+  return job;
+}
+
+async function researchProfile(
   placeId: string,
   onStatus?: ProfileStatusHandler,
   reviewOnly = false,
@@ -413,7 +440,7 @@ Evidence: ${JSON.stringify(evidence)}`,
     }
   }
 
-  return withCuratedApartment({
+  return {
     placeId,
     name,
     address,
@@ -441,5 +468,5 @@ Evidence: ${JSON.stringify(evidence)}`,
     }),
     reviews,
     sources,
-  });
+  };
 }
