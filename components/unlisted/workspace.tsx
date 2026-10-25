@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { ApartmentDetail } from "./apartment-detail";
 import { AddApartmentDialog } from "./add-apartment-dialog";
 import { ApartmentComparison, type SortKey } from "./apartment-comparison";
@@ -61,6 +61,7 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
   const [sort, setSort] = useState<SortKey>("added");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [assistantWidth, setAssistantWidth] = useState(368);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState(false);
@@ -356,7 +357,7 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
         user={user}
       />
 
-      <div className={`grid w-full flex-1 ${detailId ? "" : "lg:grid-cols-[minmax(0,1fr)_368px]"}`}>
+      <div style={{ "--assistant-width": `${assistantWidth}px` } as CSSProperties} className={`grid w-full flex-1 ${detailId ? "" : "lg:grid-cols-[minmax(0,1fr)_8px_minmax(0,var(--assistant-width))]"}`}>
         <main className="flex min-w-0 flex-col gap-6 px-4 pt-[26px] pb-28 sm:px-6 lg:px-8 lg:pb-10">
           {detailId ? (() => {
             const apartment = shortlist.find((item) => item.id === detailId);
@@ -427,6 +428,26 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
           </>}
         </main>
 
+        {!detailId && <div
+          role="separator" aria-label="Resize housing assistant" aria-orientation="vertical"
+          aria-valuemin={300} aria-valuemax={720} aria-valuenow={assistantWidth} tabIndex={0}
+          className="sticky top-[70px] hidden h-[calc(100dvh-70px)] cursor-col-resize touch-none items-center justify-center bg-line/40 hover:bg-clay-tint focus-visible:outline-2 focus-visible:outline-clay lg:flex"
+          onDoubleClick={() => setAssistantWidth(368)}
+          onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }}
+          onPointerMove={(event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+            const bounds = event.currentTarget.parentElement!.getBoundingClientRect();
+            setAssistantWidth(Math.round(Math.max(300, Math.min(720, bounds.width * .55, bounds.right - event.clientX))));
+          }}
+          onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+              event.preventDefault();
+              const max = Math.min(720, event.currentTarget.parentElement!.clientWidth * .55);
+              setAssistantWidth((width) => Math.round(Math.max(300, Math.min(max, width + (event.key === "ArrowLeft" ? 24 : -24)))));
+            } else if (event.key === "Home") setAssistantWidth(368);
+          }}
+        ><span aria-hidden="true" className="h-10 w-0.5 rounded bg-ink-soft/50" /></div>}
         {!detailId && <AssistantPanel
           apartments={shortlist}
           intro={introMessage()}

@@ -23,6 +23,35 @@ const QUICK_REPLIES = ["Lower rent", "Shorter walk"];
 const SHOW_EXTRA_HOUSING_COSTS = false;
 const SHOW_CONTACT_ADMINISTRATORS = false;
 
+/** Animate new replies locally without changing the server's SSE contract. */
+function TypedReply({ text }: { text: string }) {
+  const [revealed, setRevealed] = useState({ text: "", count: 0 });
+  const count = revealed.text === text ? revealed.count : 0;
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const characters = Array.from(text);
+    const timer = window.setInterval(() => {
+      setRevealed((current) => {
+        const start = current.text === text ? current.count : 0;
+        const next = reducedMotion.matches ? characters.length : Math.min(characters.length, start + 4);
+        if (next === characters.length) window.clearInterval(timer);
+        return { text, count: next };
+      });
+    }, 16);
+    return () => window.clearInterval(timer);
+  }, [text]);
+  const characters = Array.from(text);
+  const typing = count < characters.length;
+  return (
+    <>
+      <div aria-live="off" aria-busy={typing}>
+        <ChatMarkdown text={characters.slice(0, count).join("")} />
+        {typing && <span className="inline-block h-3 w-1 bg-clay motion-safe:animate-pulse" />}
+      </div>
+    </>
+  );
+}
+
 function ApartmentPicker({ apartments, value, onChange, label }: { apartments: ComparisonApartment[]; value: string; onChange: (id: string) => void; label: string }) {
   return (
     <label className="relative inline-flex items-center">
@@ -318,7 +347,7 @@ export function AssistantPanel({
       {open && <div className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={onClose} aria-hidden="true" />}
       <aside
         aria-label="Housing assistant"
-        className={`fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-2xl bg-panel shadow-2xl transition-transform duration-300 lg:sticky lg:top-[70px] lg:z-auto lg:h-[calc(100dvh-70px)] lg:max-h-none lg:translate-y-0 lg:rounded-none lg:border-l lg:border-line lg:shadow-none ${
+        className={`fixed inset-x-0 bottom-0 z-50 flex min-w-0 max-h-[90dvh] flex-col rounded-t-2xl bg-panel shadow-2xl transition-transform duration-300 lg:sticky lg:top-[70px] lg:z-auto lg:h-[calc(100dvh-70px)] lg:max-h-none lg:translate-y-0 lg:rounded-none lg:border-l lg:border-line lg:shadow-none ${
           open ? "translate-y-0" : "translate-y-full max-lg:invisible"
         }`}
       >
@@ -401,7 +430,7 @@ export function AssistantPanel({
                     {message.text && (
                       <div className="max-w-[92%] rounded-xl rounded-bl-sm border border-line bg-paper-raised px-3.5 py-2.5 text-[13.5px] leading-[20px] text-ink">
                         <span className="sr-only">Assistant: </span>
-                        <ChatMarkdown text={message.text} />
+                        <TypedReply text={message.text} />
                       </div>
                     )}
                     {suggestions.map((profile) => (

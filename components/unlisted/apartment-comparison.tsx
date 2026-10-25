@@ -180,7 +180,7 @@ export function ApartmentComparison({
             ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 @min-[60rem]:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3.5 @min-[36rem]:grid-cols-2 @min-[60rem]:grid-cols-3">
             {sorted.map((apartment) => (
               <ApartmentColumn
                 key={apartment.id}

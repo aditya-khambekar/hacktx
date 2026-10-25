@@ -1,8 +1,15 @@
 import { Fragment, type ReactNode } from "react";
 
-type Block = { kind: "paragraph"; lines: string[] } | { kind: "list"; items: string[] };
+type Block = { kind: "paragraph"; lines: string[] } | { kind: "list"; items: string[] } | { kind: "heading"; text: string };
 
 const BULLET = /^[\-*•]\s+/;
+const HEADING = /^\s{0,3}#{1,6}\s+(.+?)(?:\s+#+)?$/;
+const PROPERTY_TITLE = /^\s*(?:\d+[.)]\s+|[-•]\s+|->\s+|→\s+)\*\*(.+?)\*\*\s*$/;
+
+function headingText(line: string): string | null {
+  const match = line.match(HEADING) ?? line.match(PROPERTY_TITLE);
+  return match ? match[1].replace(/^\d+[.)]\s+/, "").replace(/^\*\*(.+)\*\*$/, "$1") : null;
+}
 
 function splitBlocks(text: string): Block[] {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
@@ -16,9 +23,16 @@ function splitBlocks(text: string): Block[] {
       continue;
     }
 
+    const heading = headingText(line);
+    if (heading !== null) {
+      blocks.push({ kind: "heading", text: heading });
+      index += 1;
+      continue;
+    }
+
     if (BULLET.test(line)) {
       const items: string[] = [];
-      while (index < lines.length && BULLET.test(lines[index])) {
+      while (index < lines.length && BULLET.test(lines[index]) && headingText(lines[index]) === null) {
         items.push(lines[index].replace(BULLET, ""));
         index += 1;
       }
@@ -27,7 +41,7 @@ function splitBlocks(text: string): Block[] {
     }
 
     const paragraphLines: string[] = [];
-    while (index < lines.length && lines[index].trim() && !BULLET.test(lines[index])) {
+    while (index < lines.length && lines[index].trim() && !BULLET.test(lines[index]) && headingText(lines[index]) === null) {
       paragraphLines.push(lines[index]);
       index += 1;
     }
@@ -50,6 +64,23 @@ function parseInline(text: string, keyPrefix: string): ReactNode[] {
   }
 
   while (cursor < text.length) {
+    const rest = text.slice(cursor);
+    const markdownLink = rest.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/);
+    const bareLink = rest.match(/^https?:\/\/[^\s<>]+/);
+    if (markdownLink || bareLink) {
+      const raw = markdownLink?.[2] ?? bareLink![0].replace(/[.,;:!?)]*$/, "");
+      try {
+        const url = new URL(raw);
+        const host = url.hostname.replace(/^www\./, "");
+        const label = markdownLink && !/^https?:\/\//i.test(markdownLink[1])
+          ? markdownLink[1] : host.includes("google.com") && url.pathname.includes("maps") ? "Google Maps" : host;
+        flushPlain(cursor);
+        nodes.push(<a key={`${keyPrefix}-a-${token++}`} href={url.href} title={url.href} target="_blank" rel="noopener noreferrer" className="font-medium text-clay-dark underline underline-offset-4 [overflow-wrap:anywhere]">{label}</a>);
+        cursor += markdownLink ? markdownLink[0].length : raw.length;
+        plainStart = cursor;
+        continue;
+      } catch { /* Incomplete URLs remain readable while a reply types out. */ }
+    }
     const pair = text.slice(cursor, cursor + 2);
     if (pair === "**" || pair === "__") {
       const close = text.indexOf(pair, cursor + 2);
@@ -96,8 +127,16 @@ export function ChatMarkdown({ text }: { text: string }) {
   if (blocks.length === 0) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
       {blocks.map((block, blockIndex) => {
+        if (block.kind === "heading") {
+          return (
+            <h3 key={blockIndex} className="flex items-start gap-2 pt-4 text-lg leading-snug font-bold text-ink first:pt-0 [&_strong]:font-bold">
+              <svg aria-hidden="true" className="mt-1 shrink-0 text-clay" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
+              <span>{parseInline(block.text, `h${blockIndex}`)}</span>
+            </h3>
+          );
+        }
         if (block.kind === "list") {
           return (
             <ul key={blockIndex} className="list-disc space-y-1 pl-5">

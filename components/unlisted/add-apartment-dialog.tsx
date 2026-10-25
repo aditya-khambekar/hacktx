@@ -80,6 +80,13 @@ export function AddApartmentDialog({ open, onClose, shortlistIds, onAdd }: Props
     // Display immediately. The workspace owns research so closing this dialog
     // never cancels the work or strands the apartment in a loading state.
     onAdd({ ...toComparisonApartment(profile), researchStatus: "loading" });
+    controller.current?.abort();
+    if (debounce.current) clearTimeout(debounce.current);
+    setQuery("");
+    setResults([]);
+    setSearchedQuery(null);
+    setNextStart(null);
+    setLoading(false);
     setSaving(null);
   }
 
