@@ -126,7 +126,14 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
       onClick={onOpen ? (event) => { if (!(event.target as HTMLElement).closest("button,a,summary,input,select,textarea,label")) onOpen(); } : undefined}
       className={`relative flex flex-col self-start overflow-hidden rounded-[10px] border border-line bg-paper-raised ${onOpen ? "cursor-pointer" : ""} ${className}`}
     >
-      {apartment.researchStatus === "loading" && <div className="absolute inset-0 z-20 flex items-start justify-center bg-stone-200/50 px-4 pt-24"><div role="status" className="sticky top-24 rounded-lg bg-stone-800 px-4 py-3 text-center text-sm font-semibold leading-relaxed text-white">Researching apartment details…<span className="mt-1 block text-xs font-normal">Checking pricing, fees, reviews, and commute.</span></div></div>}
+      {apartment.researchStatus === "loading" && (
+        <div onClick={(event) => event.stopPropagation()} className="absolute inset-0 z-20 flex items-start justify-center bg-stone-200/80 px-3 pt-6">
+          <div className="sticky top-6 w-full max-w-[320px] overflow-hidden rounded-lg bg-[#f6f2e9]">
+            <iframe title="Squirrel building an apartment" src="/animations/squirrel-builder.html?embed" className="aspect-[32/23] w-full border-0" />
+            <div role="status" className="px-4 pb-5 text-center text-sm font-semibold text-ink">Researching apartment details…<span className="mt-1 block text-xs font-normal text-ink-soft">Checking pricing, fees, reviews, and commute.</span></div>
+          </div>
+        </div>
+      )}
       <div inert={apartment.researchStatus === "loading"} className={`flex flex-col ${apartment.researchStatus === "loading" ? "grayscale opacity-40" : ""}`}>
       <div className="relative h-[152px] bg-sage">
         <ListingPhoto key={apartment.databaseId ?? apartment.id} tone={apartment.photoTone} name={apartment.name} databaseId={apartment.databaseId} />
