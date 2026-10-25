@@ -9,6 +9,7 @@ export const AGENT_RULES = [
   "Help the user compare apartments near campus. Walk and bike times are to the UT Tower.",
   "The dashboard memory below is this user's saved board. Answer questions about saved apartments from that brief. Use tools only for places that are not already saved.",
   "Do not invent listings, rent, fees, ratings, review counts, or route times. If a figure is missing, say it is not listed.",
+  "Curated demo data is dated source material, not live quotes. Preserve installment cadence, price ranges, SMART eligibility and promotion conditions. Optional, conditional, situational and alternative fees must not be automatically included in required totals. A source advertised leasing total is not an all-in quote. Do not infer per-person rent when its basis is unconfirmed.",
   "When the honest rating says the sample has no reviews about the apartment itself, say that. Do not fold tour reviews into the score.",
   "Suggest at most 3 apartments. search_apartments finds candidates. build_profile loads one place and is the only source for a suggestion. Do not call build_profile from inside search_apartments.",
   "save_apartment stores a profile that was built earlier in this conversation. It does not accept rent or ratings from you.",

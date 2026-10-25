@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { formatUsd, summarizeCosts } from "./costs";
+import { formatUsd, rentPeriod, summarizeCosts } from "./costs";
 import { ChevronDown } from "./icons";
 import type { ComparisonApartment, Fee } from "./types";
 
@@ -18,7 +18,7 @@ function Row({ label, value, strong = false }: { label: ReactNode; value: ReactN
   );
 }
 
-function feeValue(fee: Fee, cadence: "/ mo" | null) {
+function feeValue(fee: Fee, cadence: string | null) {
   if (fee.amount === null) return <span className="font-normal text-ink-soft">{fee.cadence === "monthly" ? "Extra · not listed" : "Not disclosed"}</span>;
   return (
     <>
@@ -63,12 +63,13 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
   const [open, setOpen] = useState(defaultOpen);
   const detailsId = useId();
   const costs = summarizeCosts(apartment);
+  const period = rentPeriod(apartment);
   const monthlyTotal =
-    costs.monthlyTotal === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} / mo`;
+    costs.monthlyTotal === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} ${period}`;
   const moveInTotal = costs.oneTimeFees.length === 0 ? "Not listed" : `${formatUsd(costs.oneTimeTotal)}${costs.oneTimeUnknownCount > 0 ? " + unknown" : ""}`;
   const monthlyFeeSum = costs.monthlyTotal === null || costs.rent === null ? null : costs.monthlyTotal - costs.rent;
   const feeCount = apartment.fees.length;
-  const rent = apartment.advertisedRent === null ? "Not published" : `${formatUsd(apartment.advertisedRent)} / mo`;
+  const rent = apartment.advertisedRent === null ? "Not published" : `${formatUsd(apartment.advertisedRent)} ${period}`;
 
   return (
     <section
@@ -88,19 +89,19 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
             <Row label="Base rent (advertised)" value={rent} />
           </dl>
 
-          <GroupHeading>+ Additional monthly fees</GroupHeading>
+          <GroupHeading>+ Required recurring fees</GroupHeading>
           <dl>
             {costs.monthlyFees.length === 0 && <Row label="None listed" value="" />}
             {costs.monthlyFees.map((fee) => (
-              <Row key={fee.name} label={feeLabel(fee)} value={feeValue(fee, "/ mo")} />
+              <Row key={fee.name} label={feeLabel(fee)} value={feeValue(fee, period)} />
             ))}
             <div className="mt-1 border-t border-line pt-1">
-              <Row label={(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known monthly subtotal" : costs.monthlyHasEstimate ? "Est. monthly total" : "Monthly total"} value={monthlyTotal} strong />
+              <Row label={(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known recurring subtotal" : costs.monthlyHasEstimate ? "Est. monthly total" : "Recurring subtotal"} value={monthlyTotal} strong />
             </div>
           </dl>
 
           <div className="mt-1 border-t border-dashed border-clay/40">
-            <GroupHeading tone="clay">One-time charges · due at move-in</GroupHeading>
+            <GroupHeading tone="clay">One-time charges · application / move-in</GroupHeading>
             <dl>
               {costs.oneTimeFees.length === 0 && <Row label="None listed" value="" />}
               {costs.oneTimeFees.map((fee) => (
@@ -115,23 +116,23 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
             )}
           </div>
 
-          {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Fees with an undisclosed frequency</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Excluded from monthly and one-time totals until the property confirms the frequency.</p></div>}
+          {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Other required charges</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Annual, usage-based and unclassified charges are excluded from the subtotals above.</p></div>}
           <dl className="mt-1 border-t border-line pt-0.5">
-            <Row label="Source" value={apartment.isSample ? "Sample listing" : "Search snippets"} />
+            <Row label="Source" value={apartment.profile?.curated ? "Curated demo data" : apartment.isSample ? "Sample listing" : "Search snippets"} />
           </dl>
         </div>
       ) : (
         <dl className="pt-1">
           <Row label="Base rent (advertised)" value={rent} />
           <Row
-            label={`+ Monthly fees${costs.monthlyUnknownCount > 0 ? ` · ${costs.monthlyUnknownCount} not listed` : ""}`}
-            value={monthlyFeeSum === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(monthlyFeeSum)} / mo`}
+            label={`+ Recurring fees${costs.monthlyUnknownCount > 0 ? ` · ${costs.monthlyUnknownCount} not listed` : ""}`}
+            value={monthlyFeeSum === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(monthlyFeeSum)} ${period}`}
           />
           <div className="mt-1 border-t border-line pt-1">
-            <Row label={(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known monthly subtotal" : costs.monthlyHasEstimate ? "Est. monthly total" : "Monthly total"} value={monthlyTotal} strong />
+            <Row label={(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known recurring subtotal" : costs.monthlyHasEstimate ? "Est. monthly total" : "Recurring subtotal"} value={monthlyTotal} strong />
           </div>
           <div className="mt-1 border-t border-dashed border-clay/40 pt-1">
-            <Row label={<span className="text-clay-dark">One-time at move-in</span>} value={moveInTotal} />
+            <Row label={<span className="text-clay-dark">One-time charges</span>} value={moveInTotal} />
           </div>
         </dl>
       )}

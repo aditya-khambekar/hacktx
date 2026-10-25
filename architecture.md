@@ -6,6 +6,42 @@ UT students sign in with Google, search West Campus apartments through a Muse Sp
 
 One Next.js app. Route Handlers are the backend. No Python service. No JSON files on disk. Secrets never reach the browser.
 
+## Curated apartment data for the hackathon
+
+The user-authorized workbook `outputs/unlisted-apartments-20261025/Unlisted-apartment-dataset.xlsx`
+is compiled into `lib/curated-apartment-data.ts`; the app imports that TypeScript data,
+not the workbook or a JSON file at runtime. `lib/curated-apartments.ts` overlays the
+curated floor plans, fees, amenities and lease terms for ION Austin, Union on San
+Antonio, Moontower and the eight separately addressed Block locations. No database
+migration, environment variable or automatic shortlist insertion is needed.
+
+Match a known Austin property by explicit name aliases and, for The Block, its
+location name or street address. A generic Block result must not inherit one
+building's data. Never replace reviews, ratings, routes, user labels or place IDs.
+Apply the overlay to new profile builds and validated saved/cache reads, including
+the agent's board memory, so existing saves get current curated details on reload.
+
+`ApartmentProfile.curated` carries the trusted record's provenance, dated lease
+terms, amenities and complete fee schedule. Each curated floor plan also carries
+its original row in `floorplans[].curated`, preserving ranges, installment cadence,
+eligibility, occupancy, reported totals and floor-plan image URLs. These optional
+fields are regenerated server-side from the bundled data, never trusted from a
+client submission. Non-curated profiles keep the existing shape and snippet rules.
+Curated source URLs use the supplied official URL when available; otherwise use a
+`curated:<record-id>` source identifier and display “User-supplied pricing” without
+inventing a public source URL.
+
+Only unconditional, fixed required charges enter calculated required subtotals.
+Optional, conditional, alternative, annual, usage-based, range and percentage fees
+remain separately visible with their conditions. Deposits are refundable only when
+explicitly stated. Per-installment prices must retain that label. Never assume that
+an unconfirmed rent basis means per person. Missing values remain unknown; dated
+curated records are labeled “Curated demo data”, not live availability or quotes.
+
+Bedroom priorities also project the card/detail floor-plan menus onto the exact
+selected bedroom count. Displayed rent and fees use a remaining plan. Filtering
+never rewrites the saved profile; clearing the priority restores all plans.
+
 ## Constants
 
 Use these exact values.
@@ -492,3 +528,12 @@ Walk and bike times are to the UT Tower, not the nearest classroom. A null leg i
 Each full profile is one place call, one Google search, one or two review pages, and two directions calls. Three suggestions plus their web checks can spend most of `MAX_SERP_CALLS`.
 
 Floor plans and fees exist only when a snippet stated them. The honest rating is over the fetched pages, and only over reviews labeled `apartment`. A solicited review that never mentions a tour can be kept. A resident comment that is about tour day can be set aside. The reason string is what the UI shows.
+
+## Apartment detail location map
+
+The full apartment view includes an interactive map for that apartment only.
+The existing authenticated `/api/apartments/campus-map` handler accepts
+`locationOnly: true` to fetch/cache the owned apartment's Maps coordinates without
+spending walking/cycling calls. Location and route caches use separate keys. The
+reused street map hides the UT Tower marker in this mode and centers on the one
+apartment; no campus outline or invented route is drawn.

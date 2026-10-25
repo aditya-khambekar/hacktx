@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { formatUsd, summarizeCosts, toComparisonApartment } from "./costs";
+import { formatUsd, rentPeriod, rentDisplay, summarizeCosts, toComparisonApartment } from "./costs";
 import { FeeBreakdown } from "./fee-breakdown";
 import { Bed, Calendar, ChevronDown, Close, Heart, Receipt, Sparkle, Tag, Walk } from "./icons";
 import { ApartmentReviews, RatingStars } from "./apartment-reviews";
+import { CuratedDetails } from "./curated-details";
 import { ListingPhoto } from "./listing-photo";
 import type { ComparisonApartment } from "./types";
 
@@ -78,9 +79,9 @@ function AttributeContent({ apartment, row }: { apartment: ComparisonApartment; 
     case "amenities":
       return apartment.amenities.length > 0 ? apartment.amenities.join(" · ") : notListed;
     case "lease":
-      return apartment.lease.months ? (
+      return apartment.lease.months || apartment.lease.dates ? (
         <>
-          {apartment.lease.months} months{apartment.lease.type && ` · ${apartment.lease.type}`}
+          {apartment.lease.months ? `${apartment.lease.months} months` : "Published lease term"}{apartment.lease.type && apartment.lease.months && ` · ${apartment.lease.type}`}
           {apartment.lease.dates && <span className="block">{apartment.lease.dates}</span>}
         </>
       ) : (
@@ -113,7 +114,8 @@ type ApartmentColumnProps = {
 export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, highlight, budget, saved, onToggleSaved, onRemove, className = "" }: ApartmentColumnProps) {
   const [planIndex, setPlanIndex] = useState(0);
   const profile = original.profile;
-  const selectedPlan = profile?.floorplans[planIndex];
+  const selectedPlanIndex = profile?.floorplans[planIndex] ? planIndex : 0;
+  const selectedPlan = profile?.floorplans[selectedPlanIndex];
   const apartment = profile && selectedPlan ? { ...original, ...toComparisonApartment({ ...profile, floorplans: [selectedPlan] }), databaseId: original.databaseId, researchStatus: original.researchStatus, researchError: original.researchError } : original;
   const costs = summarizeCosts(apartment);
   const basicRows = rows.filter((row) => row === "campus" || row === "floorplan");
@@ -172,14 +174,15 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
         </p>
       </div>
 
+      {profile?.curated && <p className="px-4 pt-2 text-[10px] font-medium text-clay-dark">Curated demo data · {profile.curated.checkedAt}</p>}
       <div className="border-b border-line px-4 pt-3.5 pb-3">
-        {!!profile && profile.floorplans.length > 1 && <label className="mb-3 block text-xs font-medium">Floor plan<select value={planIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-1 min-h-10 w-full rounded-md border border-line bg-paper px-2 text-sm">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baseRent === null ? "Rent not listed" : formatUsd(plan.baseRent)}</option>)}</select></label>}
+        {!!profile && profile.floorplans.length > 1 && <label className="mb-3 block text-xs font-medium">Floor plan<select value={selectedPlanIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-1 min-h-10 w-full rounded-md border border-line bg-paper px-2 text-sm">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baseRent === null ? "Rent not listed" : formatUsd(plan.baseRent)}</option>)}</select></label>}
         <p className="mb-2 text-xs text-ink-soft">Listed base rent</p>
         <p className="flex items-baseline gap-1.5">
           <span className="text-[26px] leading-none tabular-nums">
-            {apartment.advertisedRent === null ? "—" : formatUsd(apartment.advertisedRent)}
+            {rentDisplay(apartment)}
           </span>
-          <span className="text-[11px] text-ink-soft">{apartment.rentBasis === "basis unknown" ? "/ mo · price basis unconfirmed" : `/ ${apartment.rentBasis.replace("per ", "")} / mo`}</span>
+          <span className="text-[11px] text-ink-soft">{apartment.rentBasis === "basis unknown" ? `${rentPeriod(apartment)} · price basis unconfirmed` : `/ ${apartment.rentBasis.replace("per ", "")} ${rentPeriod(apartment)}`}</span>
         </p>
         <p className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">
           {highlight && (
@@ -212,17 +215,18 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
       </div>
       <div className="mx-4 mb-4 rounded-lg bg-sage/50 px-3 py-2.5 text-xs">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-ink">{(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known monthly subtotal" : costs.monthlyHasEstimate ? "Estimated monthly cost" : "Monthly cost"}</span>
-          <strong className="text-[16px] tabular-nums text-ink">{costs.monthlyTotal === null ? "Not available" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)}`}</strong>
+          <span className="text-ink">{(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known recurring subtotal" : costs.monthlyHasEstimate ? "Estimated recurring cost" : "Recurring subtotal"}</span>
+          <strong className="text-[16px] tabular-nums text-ink">{costs.monthlyTotal === null ? "Not available" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} ${rentPeriod(apartment)}`}</strong>
         </div>
-        <p className="mt-1 leading-relaxed text-ink-soft">{costs.monthlyUnknownCount ? `${costs.monthlyUnknownCount} monthly fee${costs.monthlyUnknownCount === 1 ? "" : "s"} still undisclosed. Total may be higher.` : `Known amounts only · ${apartment.rentBasis}. Additional fees may apply.`}</p>
+        <p className="mt-1 leading-relaxed text-ink-soft">{costs.monthlyUnknownCount ? `${costs.monthlyUnknownCount} recurring fee${costs.monthlyUnknownCount === 1 ? "" : "s"} still undisclosed. Total may be higher.` : `Known amounts only · ${apartment.rentBasis}. Additional fees may apply.`}</p>
       </div>
       {apartment.researchStatus === "error" && <div className="px-4 pb-3 text-xs"><p role="alert" className="text-clay-dark">{apartment.researchError}</p><button type="button" onClick={onRefresh} className="mt-2 min-h-10 rounded-md border border-line px-3 font-semibold">Retry research</button></div>}
       <div className="border-t border-line">
-        <ModuleDetails title="Pricing breakdown" subtitle={`${apartment.fees.length} listed fees`}>
-          <p className="mb-3 text-xs leading-relaxed text-ink-soft">Prices come from search snippets, which may be outdated or promotional. They are not a verified quote for your lease dates.{apartment.fetchedAt && ` Researched ${new Date(apartment.fetchedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago" })}.`}</p>
+        <ModuleDetails title="Pricing breakdown" subtitle={`${profile?.curated?.fees.length ?? apartment.fees.length} listed fees`}>
+          {!profile?.curated && <p className="mb-3 text-xs leading-relaxed text-ink-soft">Prices come from search snippets, which may be outdated or promotional. They are not a verified quote for your lease dates.{apartment.fetchedAt && ` Researched ${new Date(apartment.fetchedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago" })}.`}</p>}
           {apartment.rentSourceUrl && /^https?:\/\//i.test(apartment.rentSourceUrl) && <a href={apartment.rentSourceUrl} target="_blank" rel="noopener noreferrer" className="mb-3 inline-block text-xs text-clay-dark underline underline-offset-4">Check the price source</a>}
           <FeeBreakdown apartment={apartment} defaultOpen />
+          {apartment.profile?.curated && <CuratedDetails profile={apartment.profile} />}
           <p className="mt-2 text-xs leading-relaxed text-ink-soft">Unknown charges are excluded from the totals. Confirm required fees and deposits with the property before signing.</p>
         </ModuleDetails>
         <ModuleDetails title="Reviews & resident experience" subtitle={`${apartment.honestCount} resident reviews`}>

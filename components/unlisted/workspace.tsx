@@ -21,7 +21,7 @@ import {
   upsertDashboard,
 } from "./chat-client";
 import { ArrowUpRight, Plus, Receipt, Sparkle } from "./icons";
-import { PreferencesBar, budgetFromPreferences, matchesPreferences } from "./preferences-bar";
+import { PreferencesBar, budgetFromPreferences, matchesPreferences, bedroomPlanOptions } from "./preferences-bar";
 import { introMessage, tradeoffSummary } from "./sample-assistant";
 import { SiteHeader, type HeaderUser, type WorkspaceView } from "./site-header";
 import { toComparisonApartment } from "./costs";
@@ -96,7 +96,7 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
   }, []);
 
   const board = view === "saved" ? shortlist.filter((a) => savedIds.has(a.id)) : shortlist;
-  const visible = board.filter((apartment) => matchesPreferences(apartment, preferences));
+  const visible = board.filter((apartment) => matchesPreferences(apartment, preferences)).map((apartment) => bedroomPlanOptions(apartment, preferences));
   const budget = budgetFromPreferences(preferences);
   const tradeoff = tradeoffSummary(shortlist);
 
@@ -362,7 +362,7 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
         <main className="flex min-w-0 flex-col gap-6 px-4 pt-[26px] pb-28 sm:px-6 lg:px-8 lg:pb-10">
           {detailId ? (() => {
             const apartment = shortlist.find((item) => item.id === detailId);
-            return apartment ? <ApartmentDetail key={apartment.id} apartment={apartment} onBack={closeApartment} onRetry={() => { void research(apartment, true); }} /> : <div className="py-12"><p>{loaded ? "This apartment is not on your dashboard. Sign in or add it to view its details." : "Loading apartment details…"}</p><button type="button" onClick={closeApartment} className="mt-4 min-h-10 rounded-md border border-line px-4">Back to all apartments</button></div>;
+            return apartment ? <ApartmentDetail key={apartment.id} apartment={bedroomPlanOptions(apartment, preferences)} onBack={closeApartment} onRetry={() => { void research(apartment, true); }} /> : <div className="py-12"><p>{loaded ? "This apartment is not on your dashboard. Sign in or add it to view its details." : "Loading apartment details…"}</p><button type="button" onClick={closeApartment} className="mt-4 min-h-10 rounded-md border border-line px-4">Back to all apartments</button></div>;
           })() : <>
           <h1 className="sr-only">{view === "saved" ? "Saved places" : "Fall 2027 shortlist"}</h1>
 

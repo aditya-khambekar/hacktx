@@ -3,7 +3,8 @@ import type { ApartmentProfile, ComparisonApartment, Fee, FeeCadence } from "./t
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 export function formatUsd(amount: number) {
@@ -45,7 +46,7 @@ export function summarizeCosts(apartment: ComparisonApartment): CostSummary {
 
 function normalizeCadence(cadence: string | null): FeeCadence | null {
   const value = cadence?.toLowerCase() ?? "";
-  if (/month|\/mo|recurring/.test(value)) return "monthly";
+  if (/month|\/mo|recurring|per installment/.test(value)) return "monthly";
   if (/once|one[- ]time|move[- ]in|upfront|deposit|application/.test(value)) return "one-time";
   return null;
 }
@@ -65,7 +66,9 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
       amount: fee.amount,
       cadence: cadence ?? "unknown",
       basis: fee.amount === null ? "unknown" : "published",
-      refundable: /deposit/i.test(fee.name) && !/non-?refundable/i.test(fee.name),
+      refundable: profile.curated
+        ? profile.curated.fees.some((original) => original.name === fee.name && /refundable/i.test(original.name) && !/non-?refundable/i.test(original.name))
+        : /deposit/i.test(fee.name) && !/non-?refundable/i.test(fee.name),
     });
   }
 
@@ -84,7 +87,7 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     walking: profile.campus.walking,
     cycling: profile.campus.cycling,
     amenities: [...new Set(profile.amenities?.map((amenity) => amenity.name) ?? [])],
-    lease: { months: null, type: null, dates: null },
+    lease: { months: null, type: profile.curated ? "Published term" : null, dates: profile.curated?.leaseStart && profile.curated.leaseEnd ? `${profile.curated.leaseStart} – ${profile.curated.leaseEnd}` : profile.curated?.leaseNotes?.split(".")[0] ?? null },
     honestRating: profile.honestRating,
     honestCount: profile.honestCount,
     excludedTour: profile.excludedTour,
@@ -96,4 +99,14 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     photoTone: "stucco",
     isSample: false,
   };
+}
+
+export function rentPeriod(apartment: ComparisonApartment): string {
+  return apartment.profile?.floorplans[0]?.curated?.cadence === "per installment" ? "/ installment" : "/ mo";
+}
+
+export function rentDisplay(apartment: ComparisonApartment): string {
+  const low = apartment.advertisedRent;
+  const high = apartment.profile?.floorplans[0]?.curated?.baseRentMax;
+  return low === null ? "—" : `${formatUsd(low)}${high != null && high > low ? `–${formatUsd(high)}` : ""}`;
 }

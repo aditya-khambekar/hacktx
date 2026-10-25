@@ -2,6 +2,7 @@ import "server-only";
 
 import { readProfile } from "../apartments";
 import { prisma } from "../db";
+import { withCuratedApartment } from "../curated-apartments";
 import type { ApartmentProfile, RouteLeg } from "../profile";
 
 /** Review bodies in the brief stay within this so a full shortlist still fits. */
@@ -12,7 +13,8 @@ const PREFERENCE_LIMIT = 32;
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 type Fee = { name: string; amount: number | null; cadence: string | null };
@@ -60,7 +62,7 @@ export function renderMemoryBrief(
     chips.length ? chips.map((chip) => `- ${chip}`).join("\n") : "None.",
     "",
     "## Saved apartments",
-    apartments.length ? apartments.map(renderApartment).join("\n\n") : "None saved.",
+    apartments.length ? apartments.map(withCuratedApartment).map(renderApartment).join("\n\n") : "None saved.",
   ].join("\n");
 }
 
@@ -105,6 +107,15 @@ function renderApartment(profile: ApartmentProfile): string {
     "#### Property-wide fees",
     renderPropertyFees(profile),
     "",
+    ...(profile.curated ? [
+      "#### Curated demo data",
+      `Recorded ${profile.curated.checkedAt}; confirm availability. Do not describe as live rates.`,
+      `Lease: ${profile.curated.leaseStart ?? "not specified"} to ${profile.curated.leaseEnd ?? "not specified"}; installments: ${profile.curated.installments ?? "not confirmed"}.`,
+      `Included utilities/source statement: ${profile.curated.utilities ?? "not specified"}.`,
+      "Full fee schedule: optional, conditional, situational and alternative charges are not automatically required.",
+      ...profile.curated.fees.map((fee) => `- ${fee.name}: amount ${fee.amount ?? "unknown"}; range ${fee.min ?? "unknown"} to ${fee.max ?? "unknown"}; rate ${fee.rate === null ? "n/a" : `${fee.rate * 100}%`}; estimate ${fee.estimate ?? "n/a"}; ${fee.requirement}; ${fee.cadence}; scope: ${fee.scope}; ${fee.condition}`),
+      ...profile.curated.notes.map((note) => `- ${note}`),
+    ] : []),
     "#### Reviews",
     renderReviews(profile),
   ].join("\n");
@@ -127,6 +138,14 @@ function renderFloorplans(profile: ApartmentProfile): string {
       plan.sqft === null ? "sqft not listed" : `${String(plan.sqft)} sqft`,
       `base rent ${plan.baseRent === null ? "not published" : usd.format(plan.baseRent)}`,
       rentBasis(plan.rentBasis),
+      ...(plan.curated ? [
+        `cadence ${plan.curated.cadence}`,
+        `rent upper bound ${plan.curated.baseRentMax ?? "n/a"}`,
+        `source advertised leasing total ${plan.curated.reportedTotal ?? "not provided"}`,
+        `eligibility ${plan.curated.eligibility ?? "not specified"}`,
+        `occupancy ${plan.curated.occupancy ?? "not specified"}`,
+        `promotion ${plan.curated.promotion ?? "not provided"}`,
+      ] : []),
     ].join(", ");
     const fees = plan.fees.length ? plan.fees.map(formatFee).join("; ") : "none listed";
     return `- ${name}: ${summary}\n  - Fees: ${fees}`;

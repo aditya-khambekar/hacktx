@@ -1,4 +1,6 @@
+import type { CuratedDetails, CuratedPlan } from "./curated-types";
 import OpenAI from "openai";
+import { withCuratedApartment } from "./curated-apartments";
 import { honestRating } from "./rating";
 import { serpSearch } from "./serpapi";
 
@@ -15,6 +17,7 @@ export type RouteLeg = {
 };
 
 export type ApartmentProfile = {
+  curated?: CuratedDetails;
   placeId: string;
   name: string;
   address: string | null;
@@ -36,6 +39,7 @@ export type ApartmentProfile = {
     cycling: RouteLeg | null;
   };
   floorplans: Array<{
+    curated?: CuratedPlan;
     name: string | null;
     beds: number | null;
     baths: number | null;
@@ -389,7 +393,7 @@ Organic results: ${JSON.stringify(organicResults)}`,
     }
   }
 
-  return {
+  return withCuratedApartment({
     placeId,
     name,
     address,
@@ -416,5 +420,5 @@ Organic results: ${JSON.stringify(organicResults)}`,
     }),
     reviews,
     sources,
-  };
+  });
 }

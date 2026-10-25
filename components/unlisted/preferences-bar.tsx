@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatUsd } from "./costs";
+import { formatUsd, toComparisonApartment } from "./costs";
 import type { ComparisonApartment, Preference } from "./types";
 
 const AMENITIES = [
@@ -17,6 +17,15 @@ export function budgetFromPreferences(preferences: Preference[]): number | null 
   const budget = preferences.find((p) => p.id === "budget");
   const amount = budget ? Number(budget.label.match(/[\d,]+/)?.[0].replace(/,/g, "")) : NaN;
   return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+/** A display projection only: clearing the priority restores the saved plans. */
+export function bedroomPlanOptions(apartment: ComparisonApartment, preferences: Preference[]): ComparisonApartment {
+  const selected = preferences.find((preference) => preference.id === "beds");
+  const bedrooms = selected ? Number(selected.label.match(/\d+/)?.[0]) : null;
+  if (!bedrooms || !apartment.profile) return apartment;
+  const profile = { ...apartment.profile, floorplans: apartment.profile.floorplans.filter((plan) => plan.beds === bedrooms) };
+  return { ...apartment, ...toComparisonApartment(profile) };
 }
 
 /** Evaluate rent and room counts against the SAME sourced floor plan. */

@@ -15,7 +15,7 @@ export async function POST(
     if (!/^[a-zA-Z0-9_-]{1,256}$/.test(placeId)) {
       return apartmentJson({ error: "invalid_place_id" }, 400);
     }
-    if (!process.env.SERPAPI_KEY || !process.env.MODEL_API_KEY) {
+    if (!process.env.SERPAPI_KEY) {
       return apartmentJson({ error: "profile_unavailable" }, 503);
     }
     try {

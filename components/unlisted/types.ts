@@ -1,3 +1,4 @@
+import type { CuratedDetails, CuratedPlan } from "@/lib/curated-types";
 // Mirrors the ApartmentProfile in architecture.md. Null means the source did not say.
 export type RouteLeg = {
   distanceMeters: number;
@@ -7,6 +8,7 @@ export type RouteLeg = {
 };
 
 export type ApartmentProfile = {
+  curated?: CuratedDetails;
   placeId: string;
   name: string;
   address: string | null;
@@ -28,6 +30,7 @@ export type ApartmentProfile = {
     cycling: RouteLeg | null;
   };
   floorplans: Array<{
+    curated?: CuratedPlan;
     name: string | null;
     beds: number | null;
     baths: number | null;

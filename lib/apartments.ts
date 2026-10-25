@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import type { ApartmentProfile } from "./profile";
 import { honestRating } from "./rating";
+import { withCuratedApartment } from "./curated-apartments";
 
 export const apartmentFields = {
   id: true,
@@ -101,12 +102,14 @@ export function normalizeLabels(value: unknown): string[] | null {
 
 export function readProfile(value: unknown): ApartmentProfile | null {
   if (!isRecord(value)) return null;
-  const { amenities, propertyFees, ...base } = value;
+  const { amenities, propertyFees, curated: _curated, ...base } = value;
+  void _curated;
   if (amenities !== undefined && !array(object({ name: nonempty, sourceUrl: nonempty }))(amenities)) return null;
   if (propertyFees !== undefined && !array(object({ name: nonempty, amount: nullable(nonnegative), cadence: nullable(string), sourceUrl: nonempty }))(propertyFees)) return null;
   const plans = Array.isArray(base.floorplans) ? base.floorplans.map((plan) => {
     if (!isRecord(plan)) return plan;
-    const { rentBasis, ...original } = plan;
+    const { rentBasis, curated: _planCurated, ...original } = plan;
+    void _planCurated;
     if (rentBasis !== undefined && rentBasis !== null && rentBasis !== "per person" && rentBasis !== "per unit") return null;
     return original;
   }) : base.floorplans;
@@ -127,7 +130,10 @@ export function readProfile(value: unknown): ApartmentProfile | null {
         Math.abs(profile.honestRating - summary.honestRating) > 1e-9)
   ) return null;
 
-  return { ...profile, labels };
+  // Remove untrusted metadata, then rebuild it from the checked-in dataset.
+  const clean: ApartmentProfile = { ...profile, labels, floorplans: profile.floorplans.map(({ curated: _metadata, ...plan }) => { void _metadata; return plan; }) };
+  delete clean.curated;
+  return withCuratedApartment(clean);
 }
 
 export function profileData(profile: ApartmentProfile) {
