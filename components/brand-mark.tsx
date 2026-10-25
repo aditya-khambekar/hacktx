@@ -16,7 +16,7 @@ export function BrandMark() {
     <span className="inline-flex items-center gap-2.5">
       <BrandIcon />
       <span className="font-brand pb-1 text-[1.75rem] leading-none font-semibold tracking-[-0.025em] text-ink">
-        un<span className="relative inline-block">listed<span className="absolute inset-x-0 -bottom-[0.15em] h-0.5 rounded-full bg-clay" aria-hidden="true" /></span>
+        un<span className="relative inline-block">l<span className="inline-block bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(to bottom, var(--color-clay) 0.34em, var(--color-ink) 0.34em)" }}>i</span>sted<span className="absolute inset-x-0 -bottom-[0.15em] h-0.5 rounded-full bg-clay" aria-hidden="true" /></span>
       </span>
     </span>
   );
