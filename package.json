@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "snowflake:seed": "node --conditions=react-server --env-file=.env scripts/seed-snowflake.mjs",
     "predev": "node scripts/copy-map-worker.mjs",
     "prebuild": "node scripts/copy-map-worker.mjs"
   },

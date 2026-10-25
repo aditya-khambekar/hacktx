@@ -38,6 +38,11 @@ export function withCuratedApartment(profile: ApartmentProfile): ApartmentProfil
     rentBasis: plan.rentBasis, sourceUrl: plan.sourceUrl ?? provenance, fees: [],
     curated: plan,
   }));
+  // Keep an already-selected trusted layout first when saving a recommendation.
+  // Match source values, never trust client-authored curated IDs or prices.
+  const selected = profile.floorplans[0];
+  const selectedIndex = selected ? curatedPlans.findIndex((plan) => plan.name === selected.name && plan.baseRent === selected.baseRent && plan.beds === selected.beds && plan.baths === selected.baths) : -1;
+  if (selectedIndex > 0) curatedPlans.unshift(...curatedPlans.splice(selectedIndex, 1));
   const propertyFees = property.fees.filter((fee) => fee.requirement === "required").map((fee) => ({
     name: fee.name, amount: fee.amount, cadence: fee.cadence, sourceUrl: provenance,
   }));

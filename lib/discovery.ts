@@ -57,7 +57,7 @@ function isNonProperty(place: Record<string, unknown>) {
 }
 
 // Keep discovery near UT, even if a Maps search returns similarly named places elsewhere.
-function nearUT(place: Record<string, unknown>) {
+export function nearUT(place: Record<string, unknown>) {
   const coords = record(place.gps_coordinates);
   const lat = numeric(coords.latitude);
   const lng = numeric(coords.longitude);

@@ -44,6 +44,41 @@ never rewrites the saved profile; clearing the priority restores all plans.
 
 ## Constants
 
+### Criteria-based recommendations and Snowflake
+
+Muse calls `recommend_apartments` for requests that combine price, room counts,
+amenities or ranking. Arguments are validated data, never SQL. Defaults are base
+rent, per-person pricing, strict "under" a supplied maximum, resident-review score,
+at least one resident review, any room type, and no SMART-only options unless
+requested. The reply states these assumptions and the scope actually checked.
+
+Snowflake is the primary public catalogue query engine via its SQL REST API.
+`lib/snowflake.ts` accepts only configured Snowflake account hosts, binds values,
+bounds async polling and result partitions, and keeps all credentials server-side.
+Use `UNLISTED_FLOORPLANS` and `UNLISTED_RESEARCH` in the configured database/schema.
+`npm run snowflake:seed` uploads the bundled public catalogue, without user labels,
+accounts or conversations. UNLISTED_RESEARCH is an optional read-only public cache;
+fresh runtime research is written only to the existing Postgres ApartmentResearch cache. Snowflake errors or missing configuration
+fall back to public Postgres research and the curated catalogue. The result names
+the provider actually used; fallback must never be described as a Snowflake hit.
+
+The catalogue filters all matching plans before selecting a bounded research pool
+of up to eight properties. SerpAPI verifies known Austin identities and refreshes
+one review page per candidate. Muse labels reviews; code computes and ranks the
+resident scores. Recommendation passes omit route calls; the existing refresh flow populates routes. Each uncached candidate uses discovery, place verification and one reviews page. Retain the
+24-call per-message SerpAPI cap. Unknown price/basis, unknown requested amenities,
+and incomplete required recurring costs never become confirmed budget matches.
+Room counts and price constraints must hold for the SAME plan. Shared rooms,
+SMART restrictions, price ranges and promotions remain explicit. Highest rated
+means among the candidates checked, not all apartments in Austin.
+
+Server-only Snowflake configuration is optional so the existing application works
+without it: `SNOWFLAKE_ACCOUNT_HOST`, `SNOWFLAKE_TOKEN`, `SNOWFLAKE_TOKEN_TYPE`
+(PROGRAMMATIC_ACCESS_TOKEN by default), `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`,
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`. Never log or return tokens, connection
+strings, raw SQL-provider errors or another user's saved data. No new Postgres
+schema or standalone scraping service is required.
+
 Use these exact values.
 
 | Name | Value |
@@ -70,6 +105,7 @@ Server only. Read these names and no others.
 - `AUTH_GOOGLE_ID`
 - `AUTH_GOOGLE_SECRET`
 - `DATABASE_URL` — Postgres
+- Optional `SNOWFLAKE_*` names listed in the Snowflake subsection above.
 
 ## Repo layout
 
@@ -158,6 +194,18 @@ await client.responses.create({
 Parse `response.output_text` as JSON. Do not ask the chat tool-loop to emit these objects in prose.
 
 ## Agent tools
+
+### Chat response style
+
+User-facing replies lead with the answer and normally stay under 100 words:
+2–4 short sentences or up to three brief bullets. Use everyday words, short
+sentences and descriptive hyperlinks. Recommendation bullets show a bold property
+name, matching rent and pricing basis, a known rating and one useful reason.
+Expand only when requested or needed to explain an important price condition.
+Keep fee uncertainty, shared-room conditions, eligibility and dated-price limits
+beside the relevant claim. Avoid internal tool jargon and repeated dashboard
+details. Describe a provider fallback as using saved apartment details unless
+the user asks for technical information.
 
 Defined in `lib/agent/tools.ts`. The session user id is closed over by the runner. Reject any model argument named `userId`.
 
@@ -537,3 +585,18 @@ The existing authenticated `/api/apartments/campus-map` handler accepts
 spending walking/cycling calls. Location and route caches use separate keys. The
 reused street map hides the UT Tower marker in this mode and centers on the one
 apartment; no campus outline or invented route is drawn.
+
+## Workspace scroll layout
+
+On desktop, /chat fills the dynamic viewport below the shared header. The board
+and assistant thread scroll independently; long replies and expanded modules must
+not increase the outer document height. Grid and flex children use zero minimum
+heights so content can scroll. Keep the assistant heading and composer visible.
+Mobile keeps normal document scrolling and its existing assistant sheet.
+
+## Shared brand mark
+
+Use the shared BrandMark on every header and landing surface: lowercase Outfit
+SemiBold in the existing dark green, with a thin terracotta underline beneath the
+entire "listed" portion. BrandIcon is a simple outlined doorway in a rounded cream
+tile. Compact LogoMark delegates to that same icon to prevent visual drift.

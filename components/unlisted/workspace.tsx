@@ -358,8 +358,8 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
         user={user}
       />
 
-      <div style={{ "--assistant-width": `${assistantWidth}px` } as CSSProperties} className={`grid w-full flex-1 ${detailId ? "" : "lg:grid-cols-[minmax(0,1fr)_8px_minmax(0,var(--assistant-width))]"}`}>
-        <main className="flex min-w-0 flex-col gap-6 px-4 pt-[26px] pb-28 sm:px-6 lg:px-8 lg:pb-10">
+      <div style={{ "--assistant-width": `${assistantWidth}px` } as CSSProperties} className={`grid min-h-0 w-full flex-1 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden ${detailId ? "" : "lg:grid-cols-[minmax(0,1fr)_8px_minmax(0,var(--assistant-width))]"}`}>
+        <main className="flex min-h-0 min-w-0 flex-col gap-6 px-4 pt-[26px] pb-28 sm:px-6 lg:overflow-y-auto lg:px-8 lg:pb-10 [&>*]:shrink-0">
           {detailId ? (() => {
             const apartment = shortlist.find((item) => item.id === detailId);
             return apartment ? <ApartmentDetail key={apartment.id} apartment={bedroomPlanOptions(apartment, preferences)} onBack={closeApartment} onRetry={() => { void research(apartment, true); }} /> : <div className="py-12"><p>{loaded ? "This apartment is not on your dashboard. Sign in or add it to view its details." : "Loading apartment details…"}</p><button type="button" onClick={closeApartment} className="mt-4 min-h-10 rounded-md border border-line px-4">Back to all apartments</button></div>;
@@ -367,7 +367,7 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
           <h1 className="sr-only">{view === "saved" ? "Saved places" : "Fall 2027 shortlist"}</h1>
 
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div><h2 className="text-2xl text-ink">Your apartment shortlist</h2><p className="mt-1 text-sm text-ink-soft">Find a specific place and compare it on your own terms.</p></div>
+            <div><h2 className="text-2xl text-ink">Your apartment shortlist</h2><p className="mt-1 text-sm text-ink-soft">Uncover hidden fees and find the apartment that fits you.</p></div>
             <button type="button" onClick={() => setAddOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-clay px-4 text-sm font-semibold text-white hover:bg-clay-dark"><Plus size={17} />Add apartment</button>
           </div>
           <div className="@container"><PreferencesBar preferences={preferences} onChange={setPreferences} /></div>
@@ -433,7 +433,7 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
         {!detailId && <div
           role="separator" aria-label="Resize housing assistant" aria-orientation="vertical"
           aria-valuemin={300} aria-valuemax={720} aria-valuenow={assistantWidth} tabIndex={0}
-          className="sticky top-[70px] hidden h-[calc(100dvh-70px)] cursor-col-resize touch-none items-center justify-center bg-line/40 hover:bg-clay-tint focus-visible:outline-2 focus-visible:outline-clay lg:flex"
+          className="hidden h-full min-h-0 cursor-col-resize touch-none items-center justify-center bg-line/40 hover:bg-clay-tint focus-visible:outline-2 focus-visible:outline-clay lg:flex"
           onDoubleClick={() => setAssistantWidth(368)}
           onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }}
           onPointerMove={(event) => {

@@ -1,25 +1,23 @@
+/** Shared doorway symbol for the header, landing page and compact brand uses. */
+export function BrandIcon({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" focusable="false" className="shrink-0">
+      <rect width="40" height="40" rx="10" fill="var(--color-clay-tint)" />
+      <path d="M13 29V12a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17" fill="none" stroke="var(--color-ink)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 28.5V15h6v13.5" fill="none" stroke="var(--color-ink)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="21" cy="22" r="1" fill="var(--color-ink)" />
+      <path d="M11.5 29h17" stroke="var(--color-clay)" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function BrandMark() {
   return (
-    <span className="inline-flex items-center gap-3.5">
-      <span className="relative flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#e8d7cf]">
-        <span className="font-brand -mt-2 text-[1.7rem] leading-none font-black text-[#1f352e]">
-          u
-        </span>
-        <span
-          className="absolute bottom-[14%] left-1/2 h-1 w-[46%] -translate-x-1/2 bg-[#ac5c3f]"
-          aria-hidden="true"
-        />
-      </span>
-      <span className="font-brand text-[1.75rem] leading-none font-black text-[#1f352e]">
-        un
-        <span className="relative inline-block">
-          listed
-          <span
-            className="absolute inset-x-0 bottom-[0.12em] h-[0.12em] bg-[#ac5c3f]"
-            aria-hidden="true"
-          />
-        </span>
+    <span className="inline-flex items-center gap-2.5">
+      <BrandIcon />
+      <span className="font-brand pb-1 text-[1.75rem] leading-none font-semibold tracking-[-0.025em] text-ink">
+        un<span className="relative inline-block">listed<span className="absolute inset-x-0 -bottom-[0.15em] h-0.5 rounded-full bg-clay" aria-hidden="true" /></span>
       </span>
     </span>
-  )
+  );
 }

@@ -1,0 +1,72 @@
+import type { CuratedFee, CuratedPlan, CuratedProperty } from "./curated-types";
+
+export const AMENITY_NAMES = ["pets", "pool", "parking", "gym", "laundry", "furnished"] as const;
+export type AmenityName = typeof AMENITY_NAMES[number];
+export type RecommendationCriteria = {
+  maxRent: number | null; beds: number | null; baths: number | null;
+  amenities: AmenityName[]; rankBy: "resident_rating" | "google_rating" | "lowest_price";
+  priceScope: "base_rent" | "required_recurring"; priceBasis: "per person" | "per unit";
+  comparison: "under" | "at_most"; roomType: "any" | "private" | "shared";
+  allowSmart: boolean; minRating: number | null; minReviewCount: number;
+};
+const keys = ["maxRent", "beds", "baths", "amenities", "rankBy", "priceScope", "priceBasis", "comparison", "roomType", "allowSmart", "minRating", "minReviewCount"];
+const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+export function readRecommendationCriteria(value: unknown): RecommendationCriteria | null {
+  if (!record(value) || Object.keys(value).some((key) => !keys.includes(key))) return null;
+  const optional = (key: string, max: number, integer = false) => value[key] === undefined || (typeof value[key] === "number" && Number.isFinite(value[key]) && value[key] >= 0 && value[key] <= max && (!integer || Number.isInteger(value[key])));
+  if (!optional("maxRent", 100000) || value.maxRent === 0 || !optional("beds", 20, true) || !optional("baths", 20) || !optional("minRating", 5) || !optional("minReviewCount", 10000, true)) return null;
+  if (value.amenities !== undefined && (!Array.isArray(value.amenities) || value.amenities.some((v) => !AMENITY_NAMES.includes(v)))) return null;
+  for (const [key, choices] of Object.entries({ rankBy: ["resident_rating", "google_rating", "lowest_price"], priceScope: ["base_rent", "required_recurring"], priceBasis: ["per person", "per unit"], comparison: ["under", "at_most"], roomType: ["any", "private", "shared"] })) {
+    if (value[key] !== undefined && !choices.includes(value[key] as string)) return null;
+  }
+  if (value.allowSmart !== undefined && typeof value.allowSmart !== "boolean") return null;
+  return {
+    maxRent: value.maxRent as number ?? null, beds: value.beds as number ?? null, baths: value.baths as number ?? null,
+    amenities: [...new Set(value.amenities as AmenityName[] ?? [])], rankBy: value.rankBy as RecommendationCriteria["rankBy"] ?? "resident_rating",
+    priceScope: value.priceScope as RecommendationCriteria["priceScope"] ?? "base_rent", priceBasis: value.priceBasis as RecommendationCriteria["priceBasis"] ?? "per person",
+    comparison: value.comparison as RecommendationCriteria["comparison"] ?? "under", roomType: value.roomType as RecommendationCriteria["roomType"] ?? "any",
+    allowSmart: value.allowSmart as boolean ?? false, minRating: value.minRating as number ?? null, minReviewCount: value.minReviewCount as number ?? 1,
+  };
+}
+
+const patterns: Record<AmenityName, RegExp> = {
+  pets: /pet[- ]friendly|pets? allowed|dog[- ]friendly|cat[- ]friendly/i,
+  pool: /\bpool\b/i, parking: /parking|garage/i, gym: /\bgym\b|fitness/i,
+  laundry: /in[- ]unit (laundry|washer)|washer.*dryer/i, furnished: /\bfurnished\b/i,
+};
+export function amenityCodes(names: string[]): AmenityName[] {
+  return AMENITY_NAMES.filter((code) => names.some((name) => !/\b(no|not|without|unfurnished)\b/i.test(name) && patterns[code].test(name)));
+}
+export function recurringFees(fees: CuratedFee[]): { amount: number; unknownCount: number } {
+  let amount = 0, unknownCount = 0;
+  for (const fee of fees) {
+    if (fee.requirement !== "required" && !fee.requirement.includes("conditional")) continue;
+    if (/one-time|annual/.test(fee.cadence)) continue;
+    if (fee.requirement !== "required" || !/monthly|per installment/.test(fee.cadence) || fee.amount === null) unknownCount++;
+    else amount += fee.amount;
+  }
+  return { amount: Math.round(amount * 100) / 100, unknownCount };
+}
+export function roomType(plan: CuratedPlan): "private" | "shared" | "unknown" {
+  const description = `${plan.name} ${plan.variant} ${plan.occupancy ?? ""}`;
+  return /shared bedroom/i.test(description) ? "shared" : /private/i.test(description) ? "private" : "unknown";
+}
+export function isSmart(plan: CuratedPlan): boolean {
+  return /s\W*m\W*a\W*r\W*t/i.test(`${plan.name} ${plan.eligibility ?? ""}`);
+}
+export function matchingPlans(property: CuratedProperty, criteria: RecommendationCriteria): CuratedPlan[] {
+  const codes = amenityCodes(property.amenities);
+  if (criteria.amenities.some((code) => !codes.includes(code))) return [];
+  const fees = recurringFees(property.fees);
+  return property.floorplans.filter((plan) => {
+    if (criteria.beds !== null && plan.beds !== criteria.beds) return false;
+    if (criteria.baths !== null && (plan.baths === null || plan.baths < criteria.baths)) return false;
+    if (!criteria.allowSmart && isSmart(plan)) return false;
+    if (criteria.roomType !== "any" && roomType(plan) !== criteria.roomType) return false;
+    if (criteria.maxRent === null) return true;
+    if (plan.baseRent === null || plan.rentBasis !== criteria.priceBasis) return false;
+    if (criteria.priceScope === "required_recurring" && fees.unknownCount) return false;
+    const cost = plan.baseRent + (criteria.priceScope === "required_recurring" ? fees.amount : 0);
+    return criteria.comparison === "under" ? cost < criteria.maxRent : cost <= criteria.maxRent;
+  }).sort((a, b) => (a.baseRent ?? Infinity) - (b.baseRent ?? Infinity));
+}
