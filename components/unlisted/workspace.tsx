@@ -15,9 +15,10 @@ import {
   readChatStream,
   readFailureCode,
   statusPhaseFrom,
+  holdSuggestion,
+  releaseHeldSuggestions,
   suggestionFrom,
   upsertDashboard,
-  withSuggestion,
 } from "./chat-client";
 import { ArrowUpRight, Plus, Receipt, Sparkle } from "./icons";
 import { PreferencesBar, budgetFromPreferences } from "./preferences-bar";
@@ -131,6 +132,8 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
     void (async () => {
       let sawReply = false;
       let refresh = false;
+      let heldSuggestions: ApartmentProfile[] | undefined;
+      let suggestionsReleased = false;
       try {
         const response = await fetch("/api/chat", {
           method: "POST",
@@ -160,14 +163,16 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
             const profile = suggestionFrom(event.data);
             if (!profile) return;
             sawReply = true;
-            writeAssistant((message) => ({ ...message, suggestions: withSuggestion(message.suggestions, profile) }));
+            heldSuggestions = holdSuggestion(heldSuggestions, profile);
             return;
           }
           if (event.event === "message") {
             const reply = messageTextFrom(event.data);
             if (reply === null || !reply.trim()) return;
             sawReply = true;
-            writeAssistant((message) => ({ ...message, text: reply }));
+            const held = heldSuggestions;
+            suggestionsReleased = true;
+            writeAssistant((message) => releaseHeldSuggestions({ ...message, text: reply }, held));
             return;
           }
           if (event.event === "error") {
@@ -183,6 +188,11 @@ export function Workspace({ user }: { user?: HeaderUser | null }) {
         });
 
         if (!stillCurrent()) return;
+        if (!suggestionsReleased && heldSuggestions?.length) {
+          suggestionsReleased = true;
+          const held = heldSuggestions;
+          writeAssistant((message) => releaseHeldSuggestions(message, held));
+        }
         if (!sawReply) note("The assistant didn’t reply. Try again.");
         if (refresh) {
           try {

@@ -19,6 +19,10 @@ export type AddSuggestionResult = "saved" | "signin" | "failed";
 
 const QUICK_REPLIES = ["Lower rent", "Shorter walk"];
 
+/** Hidden for now. The cards stay in this file so they can be turned back on. */
+const SHOW_EXTRA_HOUSING_COSTS = false;
+const SHOW_CONTACT_ADMINISTRATORS = false;
+
 function ApartmentPicker({ apartments, value, onChange, label }: { apartments: ComparisonApartment[]; value: string; onChange: (id: string) => void; label: string }) {
   return (
     <label className="relative inline-flex items-center">
@@ -362,7 +366,7 @@ export function AssistantPanel({
             </div>
           </div>
 
-          {focused && (
+          {SHOW_EXTRA_HOUSING_COSTS && focused && (
             <PanelCard title="Extra housing costs" pill={focused.isSample ? "Sample / unverified" : "Check with property"}>
               <p className="mt-3 text-[14px] leading-[21px] text-ink">
                 Review the available cost information for this apartment. Keep in mind that published, estimated, and unknown charges are not the
@@ -375,7 +379,9 @@ export function AssistantPanel({
             </PanelCard>
           )}
 
-          {focused && <ContactAdministrators apartments={apartments} focused={focused} onFocusChange={onFocusChange} />}
+          {SHOW_CONTACT_ADMINISTRATORS && focused && (
+            <ContactAdministrators apartments={apartments} focused={focused} onFocusChange={onFocusChange} />
+          )}
 
           {(messages.length > 0 || pending) && (
             <ol className="flex flex-col gap-3" aria-live="polite" aria-busy={pending}>
