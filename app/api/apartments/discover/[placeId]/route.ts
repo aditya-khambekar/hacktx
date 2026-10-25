@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { apartmentJson } from "@/lib/apartments";
-import { buildDiscoveredProfile, discoveryFailure } from "@/lib/discovery";
+import { discoveryFailure } from "@/lib/discovery";
+import { researchApartment } from "@/lib/research-cache";
 import { withSerpBudget } from "@/lib/serpapi";
 
 export async function POST(
@@ -18,7 +19,7 @@ export async function POST(
       return apartmentJson({ error: "profile_unavailable" }, 503);
     }
     try {
-      return apartmentJson(await withSerpBudget(() => buildDiscoveredProfile(placeId)));
+      return apartmentJson(await withSerpBudget(() => researchApartment(placeId)));
     } catch (error) {
       return discoveryFailure(error, "profile_failed");
     }

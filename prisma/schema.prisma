@@ -89,3 +89,11 @@ model Apartment {
 
   @@unique([userId, placeId])
 }
+
+// Public, verified property facts only. User labels and shortlists stay private.
+model ApartmentResearch {
+  placeId   String   @id
+  profile   Json
+  fetchedAt DateTime
+  expiresAt DateTime
+}
