@@ -1,18 +1,55 @@
-# Snowflake recommendations
+# Snowflake research cache
 
-1. Use an existing Snowflake database/schema/warehouse and a role authorized to use them, or create dedicated ones in Snowsight. The application does not create roles or grant access.
-2. Copy the variables from `snowflake.env.example` into your local `.env.local` (Next.js) and `.env` (seed). Use the SQL API account hostname, without `https://` or a path. Use uppercase unquoted identifiers. Create a programmatic access token for the configured role; satisfy your account's token/network policies. Never expose it to the frontend.
-3. Run `npm run snowflake:seed`. The seed role needs CREATE TABLE in the schema plus SELECT, INSERT and UPDATE for these tables. It creates two tables and upserts the bundled public catalog; it does not delete rows, upload user data, or modify Postgres. An application role only needs SELECT on both tables.
-4. Restart `npm run dev -- --port 3100`. Ask: “Find the highest rated apartments under $1,100 per person.” The tool result reports `provider: snowflake` when the SQL query succeeds. Missing credentials, unavailable tables or query failures use Postgres public research and the bundled catalog.
+The app saves the information its existing SerpAPI and official-page scraper already
+finds: floor plans, rent, fees, amenities, lease terms, public reviews and routes.
+The scraper itself is unchanged. Snowflake makes that work reusable across users
+and server restarts. There is no bundled apartment dataset or demo price fallback.
 
-Muse converts the request into validated criteria; it never writes SQL. Snowflake runs a parameterized, same-floorplan bedroom/bathroom/base-price query. Application code rechecks eligibility, amenities and known required recurring fees against the bundled source catalog. Re-run the seed after catalog changes; this is a synchronized demo dataset, not a live leasing inventory. A successful query with no rows is a real empty result, not a provider failure.
+1. Copy `snowflake.env.example` into your local `.env.local` alongside the existing
+   variables. Set the account SQL API hostname (such as
+   `your-org-your-account.snowflakecomputing.com`), token, database, schema,
+   warehouse and role. Keep credentials server-side and out of Git/chat.
+2. Run `npm run snowflake:prepare` once. This reads `.env.local` and `.env` using
+   Next's environment loader and creates `UNLISTED_RESEARCH` if needed. It keeps
+   existing records. The setup role needs CREATE TABLE on the schema; the runtime
+   role needs SELECT, INSERT and UPDATE on the table plus the usual warehouse and
+   database/schema usage permissions. The app does not create roles or grants.
+3. Restart `npm run dev`. Research an apartment normally. The first request scrapes
+   it and upserts the complete public profile. Later requests read that profile
+   before calling SerpAPI or Muse again.
 
-Up to eight eligible properties are checked per turn, using cached public research where available. Uncached candidates use SerpAPI Maps discovery, place verification and one review page, then Muse review classification. This fits the existing 24-call budget. Resident ranking excludes tour reviews. Properties without qualifying review evidence cannot be ranked; the response includes checked coverage and failed research counts. Routes are not fetched during this recommendation pass; the apartment's existing refresh flow can populate them.
+Data stays fresh for **24 hours**. After that, the next research request rebuilds
+it. The existing Refresh pricing & research action forces a fresh scrape right
+away. Failed research keeps the previous successful record. This is on-demand
+refreshing; no daily background job is installed.
 
-`UNLISTED_RESEARCH` is an optional public review cache with columns PROPERTY_ID, PROFILE (VARIANT), FETCHED_AT. Runtime fresh research is cached in Postgres; this version does not automatically mirror that cache into Snowflake. Never upload private boards or conversation data into the public cache. Ratings are based on the fetched sample, not a guarantee about all resident reviews.
+A small 60-second process cache coalesces simultaneous Snowflake reads. Public
+Postgres research remains a fallback and fresh existing results are mirrored to
+Snowflake on reuse. Snowflake errors do not break live research. Missing credentials
+leave the existing app usable, but persistence in Snowflake starts only after
+configuration and table setup succeed.
 
-Defaults: strictly below budget, base rent per person, no SMART eligibility offers unless explicitly requested, any room type, resident score with at least one resident review. A bathroom criterion means at least that many bathrooms. Explicit private-room requests exclude layouts whose room type is unknown. Utilities, one-time and optional fees are disclosed separately. Unknown required recurring costs prevent confirmed all-in budget matching.
+Only public research is shared. User labels, saved boards, accounts and conversations
+stay in Postgres. Each user's labels are kept when their board loads newer public
+research. Invalid or old demo overlays are ignored and must be researched again.
+Older `UNLISTED_FLOORPLANS` seed rows are no longer queried; this change does not
+delete database tables or user saves.
 
-Live Snowflake connectivity must be checked after configuring credentials. Local automated tests cannot confirm your account permissions or network policy.
+Recommendations query these researched profiles with bound price/bed/bath filters
+and recheck fees, basis and amenities in code. Empty caches can research up to two
+verified live candidates per turn under the existing SerpAPI budget. Coverage grows
+as apartments are researched; the database is not prepopulated with every UT property.
 
-Official references: https://docs.snowflake.com/en/developer-guide/sql-api/submitting-requests and https://docs.snowflake.com/en/developer-guide/sql-api/authenticating
+To check persistence in Snowsight after researching an apartment:
+
+```sql
+SELECT PROPERTY_ID, FETCHED_AT,
+       PROFILE:name::STRING AS NAME,
+       ARRAY_SIZE(PROFILE:floorplans) AS FLOOR_PLANS,
+       PROFILE:floorplans[0]:baseRent::FLOAT AS FIRST_PLAN_BASE_RENT
+FROM UNLISTED_RESEARCH
+ORDER BY FETCHED_AT DESC;
+```
+
+Live Snowflake writes and account permissions still need verification after local
+credentials are configured. Tests mock the SQL API and cannot verify an account.

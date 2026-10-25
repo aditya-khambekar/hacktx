@@ -1,4 +1,5 @@
-import type { CuratedFee, CuratedPlan, CuratedProperty } from "./curated-types";
+import type { ApartmentProfile } from "./profile";
+import type { ListingFloorplan } from "./listing-types";
 
 export const AMENITY_NAMES = ["pets", "pool", "parking", "gym", "laundry", "furnished"] as const;
 export type AmenityName = typeof AMENITY_NAMES[number];
@@ -37,36 +38,32 @@ const patterns: Record<AmenityName, RegExp> = {
 export function amenityCodes(names: string[]): AmenityName[] {
   return AMENITY_NAMES.filter((code) => names.some((name) => !/\b(no|not|without|unfurnished)\b/i.test(name) && patterns[code].test(name)));
 }
-export function recurringFees(fees: CuratedFee[]): { amount: number; unknownCount: number } {
-  let amount = 0, unknownCount = 0;
+/** Published inclusive totals already include mandatory monthly fees. */
+export function researchedCost(profile: ApartmentProfile, plan: ListingFloorplan) {
+  if (plan.publishedMonthlyTotal != null) return { total: plan.publishedMonthlyTotal, unknownCount: 0 };
+  const fees = [...new Map([...plan.fees,...(profile.propertyFees ?? [])].map(f => [JSON.stringify([f.name.toLowerCase(),f.cadence,f.amount]),f])).values()];
+  let extra = 0, unknownCount = fees.length ? 0 : 1;
   for (const fee of fees) {
-    if (fee.requirement !== "required" && !fee.requirement.includes("conditional")) continue;
-    if (/one-time|annual/.test(fee.cadence)) continue;
-    if (fee.requirement !== "required" || !/monthly|per installment/.test(fee.cadence) || fee.amount === null) unknownCount++;
-    else amount += fee.amount;
+    if (fee.applies === "optional" || /one.?time|annual|application|move.?in/i.test(fee.cadence ?? "")) continue;
+    if (fee.applies !== "required" || !/month|installment/i.test(fee.cadence ?? "") || fee.amount === null) unknownCount++;
+    else extra += fee.amount;
   }
-  return { amount: Math.round(amount * 100) / 100, unknownCount };
+  return { total:plan.baseRent === null ? null : Math.round((plan.baseRent+extra)*100)/100, unknownCount };
 }
-export function roomType(plan: CuratedPlan): "private" | "shared" | "unknown" {
-  const description = `${plan.name} ${plan.variant} ${plan.occupancy ?? ""}`;
-  return /shared bedroom/i.test(description) ? "shared" : /private/i.test(description) ? "private" : "unknown";
-}
-export function isSmart(plan: CuratedPlan): boolean {
-  return /s\W*m\W*a\W*r\W*t/i.test(`${plan.name} ${plan.eligibility ?? ""}`);
-}
-export function matchingPlans(property: CuratedProperty, criteria: RecommendationCriteria): CuratedPlan[] {
-  const codes = amenityCodes(property.amenities);
-  if (criteria.amenities.some((code) => !codes.includes(code))) return [];
-  const fees = recurringFees(property.fees);
-  return property.floorplans.filter((plan) => {
+export function matchingPlans(profile: ApartmentProfile, criteria: RecommendationCriteria): ListingFloorplan[] {
+  const codes = amenityCodes((profile.amenities ?? []).map(a => a.name));
+  if (criteria.amenities.some(code => !codes.includes(code))) return [];
+  const cost = (plan: ListingFloorplan) => criteria.priceScope === "base_rent" ? plan.baseRent : researchedCost(profile,plan).total;
+  return profile.floorplans.filter(plan => {
     if (criteria.beds !== null && plan.beds !== criteria.beds) return false;
     if (criteria.baths !== null && (plan.baths === null || plan.baths < criteria.baths)) return false;
-    if (!criteria.allowSmart && isSmart(plan)) return false;
-    if (criteria.roomType !== "any" && roomType(plan) !== criteria.roomType) return false;
-    if (criteria.maxRent === null) return true;
+    if (!criteria.allowSmart && /s\W*m\W*a\W*r\W*t/i.test(plan.name ?? "")) return false;
+    const room = /shared bedroom/i.test(plan.name ?? "") ? "shared" : /private/i.test(plan.name ?? "") ? "private" : "unknown";
+    if (criteria.roomType !== "any" && criteria.roomType !== room) return false;
+    if (criteria.maxRent === null && criteria.rankBy !== "lowest_price") return true;
     if (plan.baseRent === null || plan.rentBasis !== criteria.priceBasis) return false;
-    if (criteria.priceScope === "required_recurring" && fees.unknownCount) return false;
-    const cost = plan.baseRent + (criteria.priceScope === "required_recurring" ? fees.amount : 0);
-    return criteria.comparison === "under" ? cost < criteria.maxRent : cost <= criteria.maxRent;
-  }).sort((a, b) => (a.baseRent ?? Infinity) - (b.baseRent ?? Infinity));
+    if (criteria.priceScope === "required_recurring" && researchedCost(profile,plan).unknownCount) return false;
+    const amount = cost(plan);
+    return amount !== null && (criteria.maxRent === null || (criteria.comparison === "under" ? amount < criteria.maxRent : amount <= criteria.maxRent));
+  }).sort((a,b) => (cost(a) ?? Infinity) - (cost(b) ?? Infinity));
 }

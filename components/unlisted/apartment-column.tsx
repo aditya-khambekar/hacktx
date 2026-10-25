@@ -5,7 +5,6 @@ import { formatUsd, rentPeriod, rentDisplay, summarizeCosts, toComparisonApartme
 import { FeeBreakdown } from "./fee-breakdown";
 import { Bed, Calendar, ChevronDown, Close, Heart, Receipt, Sparkle, Tag, Walk } from "./icons";
 import { ApartmentReviews, RatingStars } from "./apartment-reviews";
-import { CuratedDetails } from "./curated-details";
 import { ListingPhoto } from "./listing-photo";
 import type { ComparisonApartment } from "./types";
 
@@ -215,18 +214,17 @@ export function ApartmentColumn({ onOpen, onRefresh, apartment: original, rows, 
       </div>
       <div className="mx-4 mb-4 rounded-lg bg-sage/50 px-3 py-2.5 text-xs">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-ink">{costs.usesPublishedTotal ? "Inclusive starting price" : profile?.curated ? "Known recurring subtotal" : "Known monthly subtotal"}</span>
+          <span className="text-ink">{costs.usesPublishedTotal ? "Inclusive starting price" : "Known monthly subtotal"}</span>
           <strong className="text-[16px] tabular-nums text-ink">{costs.monthlyTotal === null ? "Not available" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} ${rentPeriod(apartment)}`}</strong>
         </div>
         <p className="mt-1 leading-relaxed text-ink-soft">{costs.monthlyUnknownCount ? `${costs.monthlyUnknownCount} recurring fee${costs.monthlyUnknownCount === 1 ? "" : "s"} still undisclosed. Total may be higher.` : `Known amounts only · ${apartment.rentBasis}. Additional fees may apply.`}</p>
       </div>
       {apartment.researchStatus === "error" && <div className="px-4 pb-3 text-xs"><p role="alert" className="text-clay-dark">{apartment.researchError}</p><button type="button" onClick={onRefresh} className="mt-2 min-h-10 rounded-md border border-line px-3 font-semibold">Retry research</button></div>}
       <div className="border-t border-line">
-        <ModuleDetails title="Pricing breakdown" subtitle={`${profile?.curated?.fees.length ?? apartment.fees.length} listed fees`}>
-          {!profile?.curated && <p className="mb-3 text-xs leading-relaxed text-ink-soft">Prices come from {apartment.sourceKind === "official page" ? "official property pages" : "search snippets"} and may change. They are not a verified quote for your lease dates.{apartment.fetchedAt && ` Researched ${new Date(apartment.fetchedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago" })}.`}</p>}
+        <ModuleDetails title="Pricing breakdown" subtitle={`${apartment.fees.length} listed fees`}>
+          <p className="mb-3 text-xs leading-relaxed text-ink-soft">Prices come from {apartment.sourceKind === "official page" ? "official property pages" : "search snippets"} and may change. They are not a verified quote for your lease dates.{apartment.fetchedAt && ` Researched ${new Date(apartment.fetchedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago" })}.`}</p>
           {apartment.rentSourceUrl && /^https?:\/\//i.test(apartment.rentSourceUrl) && <a href={apartment.rentSourceUrl} target="_blank" rel="noopener noreferrer" className="mb-3 inline-block text-xs text-clay-dark underline underline-offset-4">Check the price source</a>}
           <FeeBreakdown apartment={apartment} defaultOpen />
-          {apartment.profile?.curated && <CuratedDetails profile={apartment.profile} />}
           <p className="mt-2 text-xs leading-relaxed text-ink-soft">Unknown charges are excluded from the totals. Confirm required fees and deposits with the property before signing.</p>
         </ModuleDetails>
         <ModuleDetails title="Reviews & resident experience" subtitle={`${apartment.honestCount} resident reviews`}>

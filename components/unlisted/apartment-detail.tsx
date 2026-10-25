@@ -6,7 +6,6 @@ import { FeeBreakdown } from "./fee-breakdown";
 import { ListingPhoto } from "./listing-photo";
 import { formatUsd, rentDisplay, rentPeriod, toComparisonApartment } from "./costs";
 import { ResearchStatus } from "./research-status";
-import { CuratedDetails } from "./curated-details";
 import type { ComparisonApartment } from "./types";
 
 export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apartment: ComparisonApartment; onBack: () => void; onRetry: () => void }) {
@@ -36,7 +35,6 @@ export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apar
           {!loading && <button type="button" onClick={onRetry} className="mt-3 block min-h-10 rounded-md border border-line px-3 text-sm font-semibold text-clay-dark">Refresh pricing & research</button>}
           {apartment.fetchedAt && <p className="mt-2 text-xs text-ink-soft">Researched {new Date(apartment.fetchedAt).toLocaleString("en-US", { timeZone: "America/Chicago" })}</p>}
           <div className="mt-5 [&_section]:text-sm [&_dt]:text-sm [&_dd]:text-sm"><FeeBreakdown key={selectedPlanIndex} apartment={apartment} defaultOpen /></div>
-          {apartment.profile?.curated && <CuratedDetails profile={apartment.profile} />}
         </section>
         <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6" aria-labelledby="detail-property"><h2 id="detail-property" className="text-xl font-semibold">The property</h2><dl className="mt-4 space-y-4 text-sm leading-relaxed"><div><dt className="font-semibold">Floor plan</dt><dd className="mt-1 text-ink-soft">{apartment.floorPlan.beds ?? "?"} beds · {apartment.floorPlan.baths ?? "?"} baths{selectedPlan?.sqft !== null && selectedPlan?.sqft !== undefined && ` · ${selectedPlan.sqft} sq ft`}</dd></div><div><dt className="font-semibold">Amenities</dt><dd className="mt-1 text-ink-soft">{apartment.amenities.length ? apartment.amenities.join(" · ") : "Not disclosed in the available sources"}</dd></div><div><dt className="font-semibold">Commute to UT Tower</dt><dd className="mt-1 text-ink-soft">Walk: {apartment.walking ? `${apartment.walking.formattedDuration} · ${apartment.walking.formattedDistance}` : "Unavailable"}<br />Bike: {apartment.cycling ? `${apartment.cycling.formattedDuration} · ${apartment.cycling.formattedDistance}` : "Unavailable"}</dd></div><div><dt className="font-semibold">Lease terms</dt><dd className="mt-1 text-ink-soft">{apartment.lease.dates ?? "Confirm lease dates and terms with the property."}</dd></div></dl>
           {profile?.website && /^https?:\/\//i.test(profile.website) && <a href={profile.website} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-sm text-clay-dark underline underline-offset-4">Visit the property website</a>}

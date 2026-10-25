@@ -4,7 +4,6 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import type { ApartmentProfile } from "./profile";
 import { honestRating } from "./rating";
-import { withCuratedApartment } from "./curated-apartments";
 
 export const apartmentFields = {
   id: true,
@@ -147,10 +146,19 @@ export function readProfile(value: unknown): ApartmentProfile | null {
         Math.abs(profile.honestRating - summary.honestRating) > 1e-9)
   ) return null;
 
-  // Remove untrusted metadata, then rebuild it from the checked-in dataset.
-  const clean: ApartmentProfile = { ...profile, labels, floorplans: profile.floorplans.map(({ curated: _metadata, ...plan }) => { void _metadata; return plan; }) };
+  // Invalidate old bundled overlays instead of showing them as researched prices.
+  const hadCurated = value.curated !== undefined || profile.floorplans.some(plan => plan.curated !== undefined || plan.sourceUrl?.startsWith("curated:"));
+  const clean: ApartmentProfile = { ...profile, labels,
+    floorplans: profile.floorplans.filter(plan => !plan.curated && !plan.sourceUrl?.startsWith("curated:")).map(({ curated: _metadata, ...plan }) => { void _metadata; return plan; }),
+    sources: profile.sources.filter(source => !source.startsWith("curated:")),
+  };
   delete clean.curated;
-  return withCuratedApartment(clean);
+  if (hadCurated) {
+    clean.amenities = [];
+    clean.propertyFees = [];
+    delete clean.pricingVersion; // Next research request must fetch real sources again.
+  }
+  return clean;
 }
 
 export function profileData(profile: ApartmentProfile) {

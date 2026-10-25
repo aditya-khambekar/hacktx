@@ -1,8 +1,6 @@
 import "server-only";
 
 import { buildProfile } from "./profile";
-import type { ApartmentProfile } from "./profile";
-import { findCuratedApartment, withCuratedApartment } from "./curated-apartments";
 import { getMapsPlace, searchApartmentWebsites, serpSearch } from "./serpapi";
 
 const PAGE_SIZE = 20;
@@ -117,7 +115,7 @@ export async function discoverApartments(query: string, start = 0): Promise<Apar
 }
 
 /** Verify an Austin listing before spending calls on its complete profile. */
-export async function buildDiscoveredProfile(placeId: string) {
+export async function buildDiscoveredProfile(placeId: string, force = false) {
   const place = await getMapsPlace(placeId);
   checkBudget(place);
   if (!place) throw new DiscoveryError("place_not_found", 404);
@@ -126,28 +124,6 @@ export async function buildDiscoveredProfile(placeId: string) {
   if (!title) throw new DiscoveryError("listing_unverified", 422, "missing_name");
   if (!nearUT(details)) throw new DiscoveryError("listing_unverified", 422, "outside_ut_area");
   if (isNonProperty(details)) throw new DiscoveryError("listing_unverified", 422, "non_residential_listing");
-
-  // Maps still verifies the selected place. Curated facts remain usable if the
-  // separate model/review research fails; never fabricate missing live results.
-  if (findCuratedApartment(title, text(details.address))) {
-    try {
-      return await buildProfile(placeId);
-    } catch {
-      const rating = numeric(details.rating);
-      const count = numeric(details.reviews);
-      const profile: ApartmentProfile = {
-        placeId, name: title, address: text(details.address),
-        mapsUrl: `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(placeId)}`,
-        website: text(details.website), phone: text(details.phone), labels: [],
-        fetchedAt: new Date().toISOString(), googleRating: rating !== null && rating >= 0 && rating <= 5 ? rating : null,
-        googleReviewCount: count !== null && count >= 0 && Number.isInteger(count) ? count : null,
-        honestRating: null, honestCount: 0, excludedTour: 0, unclearCount: 0,
-        campus: { destination: "UT Tower", endCoords: "30.2862,-97.7394", walking: null, cycling: null },
-        floorplans: [], reviews: [], amenities: [], propertyFees: [], sources: [],
-      };
-      return withCuratedApartment(profile);
-    }
-  }
 
   const results = await searchApartmentWebsites(title);
   checkBudget(results);
@@ -168,7 +144,7 @@ export async function buildDiscoveredProfile(placeId: string) {
     verified = Array.isArray(organic) && organic.some(matchesListing);
   }
   if (!verified) throw new DiscoveryError("listing_unverified", 422, "no_matching_web_result");
-  const profile = await buildProfile(placeId);
+  const profile = await (force ? buildProfile(placeId, undefined, false, true) : buildProfile(placeId));
   const verificationUrls = queries.map((query) => {
     const url = new URL("https://serpapi.com/search.json");
     url.search = new URLSearchParams({ engine: "google", q: query, hl: "en", gl: "us", num: "5" }).toString();
