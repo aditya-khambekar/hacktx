@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { chatPhaseLabel } from "./chat-client";
+import { ChatMarkdown } from "./chat-markdown";
 import { FeeBreakdown, SamplePill } from "./fee-breakdown";
 import { ArrowUp, Board, ChevronDown, Close, PencilSquare, Plus, Sparkle } from "./icons";
 import { draftContactMessage } from "./sample-assistant";
@@ -392,9 +393,9 @@ export function AssistantPanel({
                 return (
                   <li key={message.id} className="flex w-full flex-col items-start gap-2 self-start">
                     {message.text && (
-                      <div className="max-w-[92%] rounded-xl rounded-bl-sm border border-line bg-paper-raised px-3.5 py-2.5 text-[13.5px] leading-[20px] whitespace-pre-wrap text-ink">
+                      <div className="max-w-[92%] rounded-xl rounded-bl-sm border border-line bg-paper-raised px-3.5 py-2.5 text-[13.5px] leading-[20px] text-ink">
                         <span className="sr-only">Assistant: </span>
-                        {message.text}
+                        <ChatMarkdown text={message.text} />
                       </div>
                     )}
                     {suggestions.map((profile) => (
