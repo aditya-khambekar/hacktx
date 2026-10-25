@@ -51,3 +51,4 @@
 {"sessionId":"5ea556","runId":"pre-fix","hypothesisId":"D","location":"app/page.tsx:LandingAuth","message":"Landing page error query","data":{"error":null,"signedIn":false},"timestamp":1792883120357}
 {"sessionId":"5ea556","runId":"pre-fix","hypothesisId":"D","location":"app/page.tsx:LandingAuth","message":"Landing page error query","data":{"error":null,"signedIn":false},"timestamp":1792883207293}
 {"sessionId":"5ea556","runId":"pre-fix","hypothesisId":"D","location":"app/page.tsx:LandingAuth","message":"Landing page error query","data":{"error":null,"signedIn":false},"timestamp":1792883293765}
+{"sessionId":"5ea556","runId":"pre-fix","hypothesisId":"D","location":"app/page.tsx:LandingAuth","message":"Landing page error query","data":{"error":null,"signedIn":true},"timestamp":1792895615432}

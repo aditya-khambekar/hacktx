@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../components/**/*.{ts,tsx}";
 @import "../node_modules/tw-animate-css/dist/tw-animate.css";
 @import "shadcn/tailwind.css";
 @import "../node_modules/maplibre-gl/dist/maplibre-gl.css";

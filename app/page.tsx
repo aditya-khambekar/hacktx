@@ -96,9 +96,6 @@ async function LandingAuth({
 }) {
   const [params, session] = await Promise.all([searchParams, getLandingSession()])
   const error = Array.isArray(params.error) ? params.error[0] : params.error
-  // #region agent log
-  fetch("http://127.0.0.1:7918/ingest/7f2113e6-8bdc-48b8-8acb-df123eb968a0", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5ea556" }, body: JSON.stringify({ sessionId: "5ea556", runId: "pre-fix", hypothesisId: "D", location: "app/page.tsx:LandingAuth", message: "Landing page error query", data: { error: error ?? null, signedIn: Boolean(session?.user) }, timestamp: Date.now() }) }).catch(() => {})
-  // #endregion
 
   return <LoginForm user={session?.user ?? null} error={error} />
 }
