@@ -21,10 +21,8 @@ export function CuratedDetails({ profile }: { profile: ApartmentProfile }) {
     ["Situational charges", data.fees.filter((fee) => fee.requirement === "situational")],
   ] as const;
   return <div className="mt-4 space-y-4 text-xs leading-relaxed text-ink">
-    <div className="rounded-md bg-sage/50 p-3">
-      <p className="font-semibold">Curated demo data · recorded {data.checkedAt}</p>
-      <p className="mt-1 text-ink-soft">Published and user-supplied information for the stated lease term. Confirm current availability and charges with the property.</p>
-      <dl className="mt-2 space-y-1">
+    <div>
+      <dl className="space-y-1">
         {(data.leaseStart || data.leaseEnd) && <div><dt className="inline font-medium">Lease: </dt><dd className="inline">{data.leaseStart ?? "Start not specified"} to {data.leaseEnd ?? "End not specified"}</dd></div>}
         {!data.leaseStart && data.leaseNotes && <div><dt className="inline font-medium">Lease: </dt><dd className="inline">{data.leaseNotes}</dd></div>}
         {!!data.installments && <div><dt className="inline font-medium">Payments: </dt><dd className="inline">{data.installments} installments</dd></div>}

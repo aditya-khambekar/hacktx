@@ -108,7 +108,7 @@ function renderApartment(profile: ApartmentProfile): string {
     renderPropertyFees(profile),
     "",
     ...(profile.curated ? [
-      "#### Curated demo data",
+      "#### Additional listing details",
       `Recorded ${profile.curated.checkedAt}; confirm availability. Do not describe as live rates.`,
       `Lease: ${profile.curated.leaseStart ?? "not specified"} to ${profile.curated.leaseEnd ?? "not specified"}; installments: ${profile.curated.installments ?? "not confirmed"}.`,
       `Included utilities/source statement: ${profile.curated.utilities ?? "not specified"}.`,

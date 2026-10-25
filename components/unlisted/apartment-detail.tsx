@@ -11,8 +11,9 @@ import type { ComparisonApartment } from "./types";
 export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apartment: ComparisonApartment; onBack: () => void; onRetry: () => void }) {
   const [planIndex, setPlanIndex] = useState(0);
   const profile = original.profile;
-  const selectedPlanIndex = profile?.floorplans[planIndex] ? planIndex : 0;
-  const selectedPlan = profile?.floorplans[selectedPlanIndex];
+  const availablePlans = profile?.floorplans.filter((plan) => !(plan.beds === 0 && plan.baths === 0)) ?? [];
+  const selectedPlanIndex = availablePlans[planIndex] ? planIndex : 0;
+  const selectedPlan = availablePlans[selectedPlanIndex];
   const apartment = selectedPlan && profile ? { ...original, ...toComparisonApartment({ ...profile, floorplans: [selectedPlan] }) } : original;
   const loading = original.researchStatus === "loading";
   return <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -25,7 +26,7 @@ export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apar
       <div className="space-y-6">
         <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6" aria-labelledby="detail-pricing">
           <h2 id="detail-pricing" className="text-xl font-semibold">Pricing & fees</h2>
-          {!!profile?.floorplans.length && <label className="mt-4 block text-sm font-medium">Floor plan<select value={selectedPlanIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-md border border-line bg-paper px-3">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baths ?? "?"} bath</option>)}</select></label>}
+          {!!availablePlans.length && <label className="mt-4 block text-sm font-medium">Floor plan<select value={selectedPlanIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-md border border-line bg-paper px-3">{availablePlans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baths ?? "?"} bath</option>)}</select></label>}
           <p className="mt-5 text-3xl font-semibold tabular-nums">{apartment.advertisedRent === null ? "Rent not published" : rentDisplay(apartment)}</p><p className="mt-1 text-sm text-ink-soft">Base rent {rentPeriod(apartment)} · {apartment.rentBasis}</p>
           <p className="mt-3 text-xs leading-relaxed text-ink-soft">Sourced listing information may be outdated or promotional. Confirm availability, lease dates, and required charges with the property.</p>
           {apartment.rentSourceUrl && /^https?:\/\//i.test(apartment.rentSourceUrl) && <a href={apartment.rentSourceUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm text-clay-dark underline underline-offset-4">Check the listed price</a>}

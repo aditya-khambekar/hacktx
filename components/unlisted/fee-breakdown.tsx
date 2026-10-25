@@ -117,9 +117,6 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
           </div>
 
           {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Other required charges</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Annual, usage-based and unclassified charges are excluded from the subtotals above.</p></div>}
-          <dl className="mt-1 border-t border-line pt-0.5">
-            <Row label="Source" value={apartment.profile?.curated ? "Curated demo data" : apartment.isSample ? "Sample listing" : "Search snippets"} />
-          </dl>
         </div>
       ) : (
         <dl className="pt-1">
