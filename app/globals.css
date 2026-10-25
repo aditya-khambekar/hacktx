@@ -147,3 +147,12 @@
     @apply font-sans;
   }
 }
+
+/* Keep the workspace action color explicit across Tailwind theme imports. */
+@utility bg-clay {
+  background-color: #b54a25;
+}
+
+@utility bg-clay-dark {
+  background-color: #943c1e;
+}

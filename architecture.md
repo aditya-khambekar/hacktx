@@ -6,7 +6,78 @@ UT students sign in with Google, search West Campus apartments through a Muse Sp
 
 One Next.js app. Route Handlers are the backend. No Python service. No JSON files on disk. Secrets never reach the browser.
 
+## Curated apartment data for the hackathon
+
+The user-authorized workbook `outputs/unlisted-apartments-20261025/Unlisted-apartment-dataset.xlsx`
+is compiled into `lib/curated-apartment-data.ts`; the app imports that TypeScript data,
+not the workbook or a JSON file at runtime. `lib/curated-apartments.ts` overlays the
+curated floor plans, fees, amenities and lease terms for ION Austin, Union on San
+Antonio, Moontower and the eight separately addressed Block locations. No database
+migration, environment variable or automatic shortlist insertion is needed.
+
+Match a known Austin property by explicit name aliases and, for The Block, its
+location name or street address. A generic Block result must not inherit one
+building's data. Never replace reviews, ratings, routes, user labels or place IDs.
+Apply the overlay to new profile builds and validated saved/cache reads, including
+the agent's board memory, so existing saves get current curated details on reload.
+
+`ApartmentProfile.curated` carries the trusted record's provenance, dated lease
+terms, amenities and complete fee schedule. Each curated floor plan also carries
+its original row in `floorplans[].curated`, preserving ranges, installment cadence,
+eligibility, occupancy, reported totals and floor-plan image URLs. These optional
+fields are regenerated server-side from the bundled data, never trusted from a
+client submission. Non-curated profiles retain source-validated search and official-page research.
+Curated source URLs use the supplied official URL when available; otherwise use a
+`curated:<record-id>` source identifier and display “User-supplied pricing” without
+inventing a public source URL.
+
+Only unconditional, fixed required charges enter calculated required subtotals.
+Optional, conditional, alternative, annual, usage-based, range and percentage fees
+remain separately visible with their conditions. Deposits are refundable only when
+explicitly stated. Per-installment prices must retain that label. Never assume that
+an unconfirmed rent basis means per person. Missing values remain unknown; dated
+curated records are labeled “Curated demo data”, not live availability or quotes.
+
+Bedroom priorities also project the card/detail floor-plan menus onto the exact
+selected bedroom count. Displayed rent and fees use a remaining plan. Filtering
+never rewrites the saved profile; clearing the priority restores all plans.
+
 ## Constants
+
+### Criteria-based recommendations and Snowflake
+
+Muse calls `recommend_apartments` for requests that combine price, room counts,
+amenities or ranking. Arguments are validated data, never SQL. Defaults are base
+rent, per-person pricing, strict "under" a supplied maximum, resident-review score,
+at least one resident review, any room type, and no SMART-only options unless
+requested. The reply states these assumptions and the scope actually checked.
+
+Snowflake is the primary public catalogue query engine via its SQL REST API.
+`lib/snowflake.ts` accepts only configured Snowflake account hosts, binds values,
+bounds async polling and result partitions, and keeps all credentials server-side.
+Use `UNLISTED_FLOORPLANS` and `UNLISTED_RESEARCH` in the configured database/schema.
+`npm run snowflake:seed` uploads the bundled public catalogue, without user labels,
+accounts or conversations. UNLISTED_RESEARCH is an optional read-only public cache;
+fresh runtime research is written only to the existing Postgres ApartmentResearch cache. Snowflake errors or missing configuration
+fall back to public Postgres research and the curated catalogue. The result names
+the provider actually used; fallback must never be described as a Snowflake hit.
+
+The catalogue filters all matching plans before selecting a bounded research pool
+of up to eight properties. SerpAPI verifies known Austin identities and refreshes
+one review page per candidate. Muse labels reviews; code computes and ranks the
+resident scores. Recommendation passes omit route calls; the existing refresh flow populates routes. Each uncached candidate uses discovery, place verification and one reviews page. Retain the
+24-call per-message SerpAPI cap. Unknown price/basis, unknown requested amenities,
+and incomplete required recurring costs never become confirmed budget matches.
+Room counts and price constraints must hold for the SAME plan. Shared rooms,
+SMART restrictions, price ranges and promotions remain explicit. Highest rated
+means among the candidates checked, not all apartments in Austin.
+
+Server-only Snowflake configuration is optional so the existing application works
+without it: `SNOWFLAKE_ACCOUNT_HOST`, `SNOWFLAKE_TOKEN`, `SNOWFLAKE_TOKEN_TYPE`
+(PROGRAMMATIC_ACCESS_TOKEN by default), `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`,
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`. Never log or return tokens, connection
+strings, raw SQL-provider errors or another user's saved data. No new Postgres
+schema or standalone scraping service is required.
 
 Use these exact values.
 
@@ -34,6 +105,7 @@ Server only. Read these names and no others.
 - `AUTH_GOOGLE_ID`
 - `AUTH_GOOGLE_SECRET`
 - `DATABASE_URL` — Postgres
+- Optional `SNOWFLAKE_*` names listed in the Snowflake subsection above.
 
 ## Repo layout
 
@@ -122,6 +194,18 @@ await client.responses.create({
 Parse `response.output_text` as JSON. Do not ask the chat tool-loop to emit these objects in prose.
 
 ## Agent tools
+
+### Chat response style
+
+User-facing replies lead with the answer and normally stay under 100 words:
+2–4 short sentences or up to three brief bullets. Use everyday words, short
+sentences and descriptive hyperlinks. Recommendation bullets show a bold property
+name, matching rent and pricing basis, a known rating and one useful reason.
+Expand only when requested or needed to explain an important price condition.
+Keep fee uncertainty, shared-room conditions, eligibility and dated-price limits
+beside the relevant claim. Avoid internal tool jargon and repeated dashboard
+details. Describe a provider fallback as using saved apartment details unless
+the user asks for technical information.
 
 Defined in `lib/agent/tools.ts`. The session user id is closed over by the runner. Reject any model argument named `userId`.
 
@@ -506,3 +590,27 @@ Structured profile calls use a 90-second timeout and no automatic retries; failu
 Each full profile is one place call, three Google searches (floor plans, amenities, fees), one or two review pages, and two directions calls, plus up to five direct official-page GETs. Direct page reads do not use SerpAPI credits. The existing 24-call SerpAPI budget still applies. Three suggestions plus their web checks can spend most of `MAX_SERP_CALLS`.
 
 Floor plans and fees exist only when supported by cited search evidence or official page content. The honest rating is over the fetched pages, and only over reviews labeled `apartment`. A solicited review that never mentions a tour can be kept. A resident comment that is about tour day can be set aside. The reason string is what the UI shows.
+
+## Apartment detail location map
+
+The full apartment view includes an interactive map for that apartment only.
+The existing authenticated `/api/apartments/campus-map` handler accepts
+`locationOnly: true` to fetch/cache the owned apartment's Maps coordinates without
+spending walking/cycling calls. Location and route caches use separate keys. The
+reused street map hides the UT Tower marker in this mode and centers on the one
+apartment; no campus outline or invented route is drawn.
+
+## Workspace scroll layout
+
+On desktop, /chat fills the dynamic viewport below the shared header. The board
+and assistant thread scroll independently; long replies and expanded modules must
+not increase the outer document height. Grid and flex children use zero minimum
+heights so content can scroll. Keep the assistant heading and composer visible.
+Mobile keeps normal document scrolling and its existing assistant sheet.
+
+## Shared brand mark
+
+Use the shared BrandMark on every header and landing surface: lowercase Outfit
+SemiBold in the existing dark green, with a thin terracotta underline beneath the
+entire "listed" portion. BrandIcon is a simple outlined doorway in a rounded cream
+tile. Compact LogoMark delegates to that same icon to prevent visual drift.

@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import type { ApartmentProfile } from "./profile";
 import { honestRating } from "./rating";
+import { withCuratedApartment } from "./curated-apartments";
 
 export const apartmentFields = {
   id: true,
@@ -101,7 +102,8 @@ export function normalizeLabels(value: unknown): string[] | null {
 
 export function readProfile(value: unknown): ApartmentProfile | null {
   if (!isRecord(value)) return null;
-  const { amenities, propertyFees, pricingVersion, ...base } = value;
+  const { amenities, propertyFees, pricingVersion, curated: _curated, ...base } = value;
+  void _curated;
   if (pricingVersion !== undefined && pricingVersion !== 1) return null;
   const originalFee = (fee: unknown) => {
     if (!isRecord(fee)) return null;
@@ -118,7 +120,8 @@ export function readProfile(value: unknown): ApartmentProfile | null {
   }))) return null;
   const plans = Array.isArray(base.floorplans) ? base.floorplans.map((plan) => {
     if (!isRecord(plan)) return plan;
-    const { rentBasis, publishedMonthlyTotal, priceKind, leaseTerm, sourceKind, ...original } = plan;
+    const { rentBasis, publishedMonthlyTotal, priceKind, leaseTerm, sourceKind, curated: _planCurated, ...original } = plan;
+    void _planCurated;
     if (publishedMonthlyTotal !== undefined && !nullable(nonnegative)(publishedMonthlyTotal) ||
         publishedMonthlyTotal !== undefined && publishedMonthlyTotal !== null && typeof plan.baseRent === "number" && Number(publishedMonthlyTotal) < plan.baseRent ||
         priceKind !== undefined && priceKind !== null && (typeof priceKind !== "string" || !["starting at", "exact", "range"].includes(priceKind)) ||
@@ -144,7 +147,10 @@ export function readProfile(value: unknown): ApartmentProfile | null {
         Math.abs(profile.honestRating - summary.honestRating) > 1e-9)
   ) return null;
 
-  return { ...profile, labels };
+  // Remove untrusted metadata, then rebuild it from the checked-in dataset.
+  const clean: ApartmentProfile = { ...profile, labels, floorplans: profile.floorplans.map(({ curated: _metadata, ...plan }) => { void _metadata; return plan; }) };
+  delete clean.curated;
+  return withCuratedApartment(clean);
 }
 
 export function profileData(profile: ApartmentProfile) {

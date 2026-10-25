@@ -19,6 +19,39 @@ export type AddSuggestionResult = "saved" | "signin" | "failed";
 
 const QUICK_REPLIES = ["Lower rent", "Shorter walk"];
 
+/** Hidden for now. The cards stay in this file so they can be turned back on. */
+const SHOW_EXTRA_HOUSING_COSTS = false;
+const SHOW_CONTACT_ADMINISTRATORS = false;
+
+/** Animate new replies locally without changing the server's SSE contract. */
+function TypedReply({ text }: { text: string }) {
+  const [revealed, setRevealed] = useState({ text: "", count: 0 });
+  const count = revealed.text === text ? revealed.count : 0;
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const characters = Array.from(text);
+    const timer = window.setInterval(() => {
+      setRevealed((current) => {
+        const start = current.text === text ? current.count : 0;
+        const next = reducedMotion.matches ? characters.length : Math.min(characters.length, start + 4);
+        if (next === characters.length) window.clearInterval(timer);
+        return { text, count: next };
+      });
+    }, 16);
+    return () => window.clearInterval(timer);
+  }, [text]);
+  const characters = Array.from(text);
+  const typing = count < characters.length;
+  return (
+    <>
+      <div aria-live="off" aria-busy={typing}>
+        <ChatMarkdown text={characters.slice(0, count).join("")} />
+        {typing && <span className="inline-block h-3 w-1 bg-clay motion-safe:animate-pulse" />}
+      </div>
+    </>
+  );
+}
+
 function ApartmentPicker({ apartments, value, onChange, label }: { apartments: ComparisonApartment[]; value: string; onChange: (id: string) => void; label: string }) {
   return (
     <label className="relative inline-flex items-center">
@@ -314,11 +347,11 @@ export function AssistantPanel({
       {open && <div className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={onClose} aria-hidden="true" />}
       <aside
         aria-label="Housing assistant"
-        className={`fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-2xl bg-panel shadow-2xl transition-transform duration-300 lg:sticky lg:top-[70px] lg:z-auto lg:h-[calc(100dvh-70px)] lg:max-h-none lg:translate-y-0 lg:rounded-none lg:border-l lg:border-line lg:shadow-none ${
+        className={`fixed inset-x-0 bottom-0 z-50 flex min-h-0 min-w-0 max-h-[90dvh] flex-col rounded-t-2xl bg-panel shadow-2xl transition-transform duration-300 lg:static lg:z-auto lg:h-full lg:overflow-hidden lg:max-h-none lg:translate-y-0 lg:rounded-none lg:border-l lg:border-line lg:shadow-none ${
           open ? "translate-y-0" : "translate-y-full max-lg:invisible"
         }`}
       >
-        <div className="flex items-start gap-3 border-b border-line px-6 pt-6 pb-5">
+        <div className="flex shrink-0 items-start gap-3 border-b border-line px-6 pt-6 pb-5">
           <div className="min-w-0 flex-1">
             <h2 className="text-[18px] leading-[1.3] text-ink">What are you looking for in your future home?</h2>
             <p className="mt-2 text-[11px] text-ink-soft">Tell me what matters. I&rsquo;ll build your board.</p>
@@ -340,7 +373,7 @@ export function AssistantPanel({
           </button>
         </div>
 
-        <div ref={threadRef} className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 pt-6 pb-6">
+        <div ref={threadRef} className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pt-6 pb-6">
           <div>
             <p className="flex items-center gap-2 text-[12px] tracking-[0.02em] text-clay-dark uppercase">
               <Sparkle size={15} className="text-clay" />
@@ -362,7 +395,7 @@ export function AssistantPanel({
             </div>
           </div>
 
-          {focused && (
+          {SHOW_EXTRA_HOUSING_COSTS && focused && (
             <PanelCard title="Extra housing costs" pill={focused.isSample ? "Sample / unverified" : "Check with property"}>
               <p className="mt-3 text-[14px] leading-[21px] text-ink">
                 Review the available cost information for this apartment. Keep in mind that published, estimated, and unknown charges are not the
@@ -375,7 +408,9 @@ export function AssistantPanel({
             </PanelCard>
           )}
 
-          {focused && <ContactAdministrators apartments={apartments} focused={focused} onFocusChange={onFocusChange} />}
+          {SHOW_CONTACT_ADMINISTRATORS && focused && (
+            <ContactAdministrators apartments={apartments} focused={focused} onFocusChange={onFocusChange} />
+          )}
 
           {(messages.length > 0 || pending) && (
             <ol className="flex flex-col gap-3" aria-live="polite" aria-busy={pending}>
@@ -395,7 +430,7 @@ export function AssistantPanel({
                     {message.text && (
                       <div className="max-w-[92%] rounded-xl rounded-bl-sm border border-line bg-paper-raised px-3.5 py-2.5 text-[13.5px] leading-[20px] text-ink">
                         <span className="sr-only">Assistant: </span>
-                        <ChatMarkdown text={message.text} />
+                        <TypedReply text={message.text} />
                       </div>
                     )}
                     {suggestions.map((profile) => (
@@ -424,7 +459,7 @@ export function AssistantPanel({
         </div>
 
         <form
-          className="px-5 pt-2 pb-3"
+          className="shrink-0 px-5 pt-2 pb-3"
           onSubmit={(event) => {
             event.preventDefault();
             submit(draft);

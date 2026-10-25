@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { formatUsd, summarizeCosts } from "./costs";
+import { formatUsd, rentDisplay, rentPeriod, summarizeCosts } from "./costs";
 import { ChevronDown } from "./icons";
 import type { ComparisonApartment, Fee } from "./types";
 
@@ -18,7 +18,7 @@ function Row({ label, value, strong = false }: { label: ReactNode; value: ReactN
   );
 }
 
-function feeValue(fee: Fee, cadence: "/ mo" | null) {
+function feeValue(fee: Fee, cadence: string | null) {
   if (fee.amount === null) return <span className="font-normal text-ink-soft">{fee.cadence === "monthly" ? "Extra · not listed" : "Not disclosed"}</span>;
   return (
     <>
@@ -67,14 +67,15 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
   const [open, setOpen] = useState(defaultOpen);
   const detailsId = useId();
   const costs = summarizeCosts(apartment);
+  const period = rentPeriod(apartment);
   const monthlyTotal =
-    costs.monthlyTotal === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} / mo`;
+    costs.monthlyTotal === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} ${period}`;
   const moveInTotal = costs.oneTimeFees.length === 0 ? "Not listed" : `${formatUsd(costs.oneTimeTotal)}${costs.oneTimeUnknownCount > 0 ? " + unknown" : ""}`;
   const monthlyFeeSum = costs.monthlyTotal === null || costs.rent === null ? null : costs.monthlyTotal - costs.rent;
   const feeCount = apartment.fees.length;
-  const rent = apartment.advertisedRent === null ? "Not found" : `${formatUsd(apartment.advertisedRent)} / mo`;
+  const rent = apartment.advertisedRent === null ? "Not found" : `${rentDisplay(apartment)} ${period}`;
 
-  const totalLabel = costs.usesPublishedTotal ? "Published inclusive starting price" : "Known monthly subtotal";
+  const totalLabel = costs.usesPublishedTotal ? "Published inclusive starting price" : apartment.profile?.curated ? "Known recurring subtotal" : "Known monthly subtotal";
   return (
     <section
       aria-label={`${title ?? "Fee breakdown"} for ${apartment.name}`}
@@ -93,11 +94,11 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
             <Row label="Base rent (advertised)" value={rent} />
           </dl>
 
-          <GroupHeading>{costs.usesPublishedTotal ? "Itemized monthly fees · included where applicable" : "+ Additional monthly fees"}</GroupHeading>
+          <GroupHeading>{costs.usesPublishedTotal ? "Itemized monthly fees · included where applicable" : "+ Required recurring fees"}</GroupHeading>
           <dl>
             {costs.monthlyFees.length === 0 && <Row label="None listed" value="" />}
             {costs.monthlyFees.map((fee) => (
-              <Row key={fee.name} label={feeLabel(fee)} value={feeValue(fee, "/ mo")} />
+              <Row key={fee.name} label={feeLabel(fee)} value={feeValue(fee, period)} />
             ))}
             <div className="mt-1 border-t border-line pt-1">
               <Row label={totalLabel} value={monthlyTotal} strong />
@@ -121,18 +122,18 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
           </div>
 
           {costs.usesPublishedTotal && <p className="mt-2 text-xs leading-relaxed text-ink-soft">The property’s inclusive starting price already includes mandatory monthly fees. Itemized fees are not added to it again. Optional choices, eligibility and lease dates can change your price.</p>}
-          {!!costs.conditionalFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Optional & conditional charges</GroupHeading><dl>{costs.conditionalFees.map((fee, index) => <Row key={`${fee.name}-${index}`} label={feeLabel(fee)} value={feeValue(fee, fee.cadence === "monthly" ? "/ mo" : null)} />)}</dl><p className="mt-2 text-xs text-ink-soft">Shown separately; not added to the published inclusive price or known subtotals. Promotions or waivers may apply. Confirm your eligibility with the property.</p></div>}
-          {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Fees with an undisclosed frequency</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Excluded from monthly and one-time totals until the property confirms the frequency.</p></div>}
+          {!!costs.conditionalFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Optional & conditional charges</GroupHeading><dl>{costs.conditionalFees.map((fee, index) => <Row key={`${fee.name}-${index}`} label={feeLabel(fee)} value={feeValue(fee, fee.cadence === "monthly" ? period : null)} />)}</dl><p className="mt-2 text-xs text-ink-soft">Shown separately; not added to the published inclusive price or known subtotals. Promotions or waivers may apply. Confirm your eligibility with the property.</p></div>}
+          {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Other required charges</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Annual, usage-based and unclassified charges are excluded from the subtotals above.</p></div>}
           <dl className="mt-1 border-t border-line pt-0.5">
-            <Row label="Source" value={apartment.isSample ? "Sample listing" : apartment.sourceKind === "official page" ? "Official property pages" : "Search snippets"} />
+            <Row label="Source" value={apartment.profile?.curated ? "Curated demo data" : apartment.isSample ? "Sample listing" : apartment.sourceKind === "official page" ? "Official property pages" : "Search snippets"} />
           </dl>
         </div>
       ) : (
         <dl className="pt-1">
           <Row label="Base rent (advertised)" value={rent} />
           <Row
-            label={`+ Monthly fees${costs.monthlyUnknownCount > 0 ? ` · ${costs.monthlyUnknownCount} not listed` : ""}`}
-            value={monthlyFeeSum === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(monthlyFeeSum)} / mo`}
+            label={`+ Recurring fees${costs.monthlyUnknownCount > 0 ? ` · ${costs.monthlyUnknownCount} not listed` : ""}`}
+            value={monthlyFeeSum === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(monthlyFeeSum)} ${period}`}
           />
           <div className="mt-1 border-t border-line pt-1">
             <Row label={totalLabel} value={monthlyTotal} strong />

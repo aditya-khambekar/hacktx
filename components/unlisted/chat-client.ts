@@ -108,6 +108,25 @@ export function withSuggestion(
   return list;
 }
 
+/** Collect a profile for this turn. It stays off the message until release. */
+export function holdSuggestion(
+  held: readonly ApartmentProfile[] | undefined,
+  profile: ApartmentProfile,
+): ApartmentProfile[] {
+  return withSuggestion(held, profile);
+}
+
+/** Copy held profiles onto a message. An empty hold leaves the message unchanged. */
+export function releaseHeldSuggestions<T extends { suggestions?: ApartmentProfile[] }>(
+  message: T,
+  held: readonly ApartmentProfile[] | undefined,
+): T {
+  if (!held?.length) return message;
+  let suggestions = message.suggestions;
+  for (const profile of held) suggestions = withSuggestion(suggestions, profile);
+  return { ...message, suggestions };
+}
+
 export function mergeDashboard(
   current: readonly ComparisonApartment[],
   rows: readonly { id: string; profile: ApartmentProfile }[],

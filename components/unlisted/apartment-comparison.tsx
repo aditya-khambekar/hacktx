@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ATTRIBUTE_ROWS, ApartmentColumn, attributeValue, type Highlight } from "./apartment-column";
+import { ATTRIBUTE_ROWS, ApartmentColumn, type Highlight } from "./apartment-column";
 import { CampusMap } from "./campus-map";
 import { summarizeCosts } from "./costs";
 import { ChevronDown, Columns, MapIcon } from "./icons";
@@ -83,16 +83,11 @@ export function ApartmentComparison({
   emptyState,
 }: ApartmentComparisonProps) {
   const [mode, setMode] = useState<"compare" | "map">("compare");
-  const [onlyDifferences, setOnlyDifferences] = useState(false);
 
   const sorted = sortApartments(apartments, sort);
   const activeId = sorted.some((a) => a.id === selectedId) ? selectedId : (sorted[0]?.id ?? null);
   const highlights = computeHighlights(apartments);
-  const canDiff = apartments.length > 1;
-  const rows =
-    onlyDifferences && canDiff
-      ? ATTRIBUTE_ROWS.filter((row) => new Set(apartments.map((a) => attributeValue(a, row))).size > 1)
-      : ATTRIBUTE_ROWS;
+  const rows = ATTRIBUTE_ROWS;
 
   return (
     <section aria-label="Apartment comparison" className="@container flex flex-col gap-4">
@@ -120,25 +115,6 @@ export function ApartmentComparison({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-soft">
-          {mode === "compare" && (
-            <label className={`flex items-center gap-2 ${canDiff ? "cursor-pointer" : "opacity-50"}`}>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={onlyDifferences && canDiff}
-                disabled={!canDiff}
-                onClick={() => setOnlyDifferences((value) => !value)}
-                className={`relative h-[16px] w-[26px] rounded-full transition-colors ${onlyDifferences && canDiff ? "bg-clay" : "bg-toggle"}`}
-              >
-                <span
-                  className={`absolute top-[2px] left-[2px] h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
-                    onlyDifferences && canDiff ? "translate-x-[10px]" : ""
-                  }`}
-                />
-              </button>
-              <span>Only differences</span>
-            </label>
-          )}
           <label className="relative flex items-center gap-1.5">
             <span>Sort:</span>
             <select
@@ -180,7 +156,7 @@ export function ApartmentComparison({
             ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 @min-[60rem]:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3.5 @min-[36rem]:grid-cols-2 @min-[60rem]:grid-cols-3">
             {sorted.map((apartment) => (
               <ApartmentColumn
                 key={apartment.id}

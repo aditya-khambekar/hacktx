@@ -6,5 +6,5 @@ export const metadata: Metadata = {
 };
 
 export default function ChatLayout({ children }: LayoutProps<"/chat">) {
-  return <div className="flex min-h-full flex-1 flex-col bg-paper font-sans text-ink">{children}</div>;
+  return <div className="flex min-h-full flex-1 flex-col lg:h-dvh lg:min-h-0 lg:flex-none lg:overflow-hidden bg-paper font-sans text-ink">{children}</div>;
 }

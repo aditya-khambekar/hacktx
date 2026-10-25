@@ -1,6 +1,8 @@
 import "server-only";
 
 import { buildProfile } from "./profile";
+import type { ApartmentProfile } from "./profile";
+import { findCuratedApartment, withCuratedApartment } from "./curated-apartments";
 import { getMapsPlace, searchApartmentWebsites, serpSearch } from "./serpapi";
 
 const PAGE_SIZE = 20;
@@ -57,7 +59,7 @@ function isNonProperty(place: Record<string, unknown>) {
 }
 
 // Keep discovery near UT, even if a Maps search returns similarly named places elsewhere.
-function nearUT(place: Record<string, unknown>) {
+export function nearUT(place: Record<string, unknown>) {
   const coords = record(place.gps_coordinates);
   const lat = numeric(coords.latitude);
   const lng = numeric(coords.longitude);
@@ -124,6 +126,28 @@ export async function buildDiscoveredProfile(placeId: string) {
   if (!title) throw new DiscoveryError("listing_unverified", 422, "missing_name");
   if (!nearUT(details)) throw new DiscoveryError("listing_unverified", 422, "outside_ut_area");
   if (isNonProperty(details)) throw new DiscoveryError("listing_unverified", 422, "non_residential_listing");
+
+  // Maps still verifies the selected place. Curated facts remain usable if the
+  // separate model/review research fails; never fabricate missing live results.
+  if (findCuratedApartment(title, text(details.address))) {
+    try {
+      return await buildProfile(placeId);
+    } catch {
+      const rating = numeric(details.rating);
+      const count = numeric(details.reviews);
+      const profile: ApartmentProfile = {
+        placeId, name: title, address: text(details.address),
+        mapsUrl: `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(placeId)}`,
+        website: text(details.website), phone: text(details.phone), labels: [],
+        fetchedAt: new Date().toISOString(), googleRating: rating !== null && rating >= 0 && rating <= 5 ? rating : null,
+        googleReviewCount: count !== null && count >= 0 && Number.isInteger(count) ? count : null,
+        honestRating: null, honestCount: 0, excludedTour: 0, unclearCount: 0,
+        campus: { destination: "UT Tower", endCoords: "30.2862,-97.7394", walking: null, cycling: null },
+        floorplans: [], reviews: [], amenities: [], propertyFees: [], sources: [],
+      };
+      return withCuratedApartment(profile);
+    }
+  }
 
   const results = await searchApartmentWebsites(title);
   checkBudget(results);

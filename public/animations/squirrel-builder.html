@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unlisted · Squirrel construction</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin:0; min-height:100svh; display:grid; place-items:center; background:#f6f2e9; color:#493c30; font-family:system-ui,sans-serif }
+  main { width:min(900px,100%); padding:24px }
+  canvas { display:block; width:100%; image-rendering:pixelated; aspect-ratio:32/23 }
+  footer { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:20px 0; border-top:1px solid #d8cdbb }
+  body.embed main { padding:0; width:100% }
+  body.embed footer { display:none }
+  p { margin:0; font-size:14px }
+  button { font:inherit; font-size:14px; background:transparent; border:1px solid #aa967d; padding:8px 16px; border-radius:6px; color:inherit; cursor:pointer }
+  button:focus-visible { outline:3px solid #b5522a; outline-offset:4px }
+</style>
+<main>
+  <canvas width="320" height="230" aria-label="A pixel-art squirrel in a hard hat builds a four-floor apartment, brick by brick, then celebrates." role="img"></canvas>
+  <footer><p id="status" aria-live="off">Laying the foundation…</p><button type="button">Pause animation</button></footer>
+</main>
+<script>
+  if(new URLSearchParams(location.search).has('embed'))document.body.classList.add('embed');
+  const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
+  ctx.imageSmoothingEnabled=false;
+  const sprite=new Image();sprite.src='./buff-squirrel.jpeg';
+  const bodySprite=new Image();bodySprite.src='./armless-squirrel.png';
+  const armSprite=document.createElement('canvas');
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  let playing=!reduced.matches, elapsed=playing?0:18500, previous=0;
+  const button=document.querySelector('button'),status=document.querySelector('#status');
+  const rect=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),w,h)};
+  const colors={brick:'#bd7451',light:'#d99b72',mortar:'#e8c8a4',edge:'#80513b',glass:'#abc7c1',glassDark:'#739c99'};
+  function floor(n,progress){
+    const y=192-n*33;
+    // Each course appears in the squirrel's construction order.
+    const courses=6,cols=14;
+    for(let row=0;row<courses;row++)for(let col=0;col<cols;col++){
+      if((row*cols+col)/(courses*cols)>=progress)continue;
+      const bx=173+col*10,by=y+27-row*5;
+      rect(bx,by,10,5,colors.mortar);
+      rect(bx+(row%2?1:0),by,9,4,(row+col)%4===0?colors.light:colors.brick);
+    }
+    if(progress>.55){
+      for(let w=0;w<3;w++){
+        if(progress<.59+w*.1)continue;
+        if(n===0&&w===1)continue;
+        const x=188+w*42;
+        rect(x,y+5,24,22,colors.edge);rect(x+2,y+7,20,17,colors.glass);
+        rect(x+3,y+8,7,7,'#d9e7db');rect(x+11,y+7,2,17,colors.edge);rect(x+2,y+15,20,2,colors.edge);
+        rect(x-2,y+26,28,3,colors.mortar);
+      }
+    }
+    if(n===0&&progress>.8){rect(228,195,29,30,colors.edge);rect(231,198,23,27,'#506e64');rect(249,211,2,2,'#eed18b')}
+    if(progress>.96)rect(170,y-2,146,4,colors.edge);
+  }
+  function draw(ms){
+    const t=ms%23000, start=1800, duration=3500;
+    ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,320,230);rect(0,0,320,230,'#f6f2e9');
+    ctx.translate(-65,-8);
+    rect(96,224,235,3,'#b0b290');rect(96,227,235,3,'#ded9c6');
+    rect(170,225,148,3,'#80513b');
+    const count=Math.min(4,Math.max(0,(t-start)/duration));
+    for(let i=0;i<4;i++)floor(i,Math.min(1,Math.max(0,count-i)));
+    const done=t>start+4*duration;
+    if(done){
+      rect(167,87,152,6,colors.edge);rect(173,81,140,6,colors.mortar);
+      rect(231,201,25,24,colors.edge);rect(234,204,19,21,'#506e64');rect(248,214,2,2,'#eed18b');
+
+      for(let i=0;i<9;i++){
+        const age=(t-start-4*duration)/1000;
+        if(age<2.5)rect(240+Math.sin(i*8)*age*42,78-age*28+age*age*10+i%3*4,3,3,['#b5522a','#d4ae46','#769780'][i%3]);
+      }
+    }
+    // A scaffold rises with the builder; the squirrel keeps its supplied pixel art.
+    let level=Math.min(3,Math.floor(Math.max(0,count))),sy=157-level*33;
+    if(done)sy=157;
+    if(!done&&count>0){
+      rect(137,sy+67,34,4,'#a78a66');rect(142,sy+71,3,224-sy-71,'#a78a66');rect(160,sy+71,3,224-sy-71,'#a78a66');
+      for(let y=sy+72;y<222;y+=12)rect(142,y,21,2,'#c9b18b');
+    }
+    const hammering=!done&&t>start;
+    const bob=hammering?0:done&&t<19000?-Math.abs(Math.sin(t/130))*5:0;
+    const phase=(t%720)/720;
+    // Deliberate wind-up, quick downstroke, then a short contact hold.
+    const swing=phase<.60 ? -.95*(phase/.60) : phase<.78 ? -.95+1.2*((phase-.60)/.18) : .25;
+    const angle=hammering?Math.round(swing*8)/8:0;
+    // The complete armless body remains stationary under the separate buff arm.
+    // Draw the clipped arm opaquely over the body, preserving its original colors.
+    const armPoints=[[30,31],[39,32],[42,37],[41,46],[35,53],[27,57],[15,57],[13,53],[12,50],[3,50],[2,45],[7,40],[10,37],[18,37],[20,41],[24,42],[27,37]];
+    function armPath(){ctx.moveTo(...armPoints[0]);for(const point of armPoints.slice(1))ctx.lineTo(...point);ctx.closePath()}
+    ctx.save();
+    ctx.translate(180,sy+bob-3);ctx.scale(-1,1);
+    // Normalize the new body's tighter crop to the buff sprite's body bounds.
+    ctx.drawImage(bodySprite,2,3,72,74);
+    ctx.globalCompositeOperation='source-over';
+    ctx.globalAlpha=1;
+    // The source artwork's muscular shoulder, forearm, paw and hammer rotate
+    // as one piece, retaining its original outline, highlights and fur colors.
+    ctx.translate(0,6);
+    ctx.translate(34,35);ctx.rotate(-angle);ctx.translate(-34,-35);
+    ctx.beginPath();armPath();ctx.clip();ctx.drawImage(armSprite,0,0,78,78);
+    ctx.restore();
+    if(hammering&&phase>=.78&&phase<.90){
+      rect(175,sy+34,2,5,'#d4ae46');rect(179,sy+30,5,2,'#d4ae46');rect(180,sy+40,3,2,'#d4ae46');
+    }
+    let text=t<start?'Laying the foundation…':done?'A new place to call home.':`Building floor ${level+1} of 4…`;
+    if(status.textContent!==text)status.textContent=text;
+  }
+  function frame(now){if(previous&&playing&&!document.hidden)elapsed+=Math.min(now-previous,80)*8;previous=now;draw(elapsed);requestAnimationFrame(frame)}
+  button.textContent=playing?'Pause animation':'Play animation';
+  button.onclick=()=>{playing=!playing;button.textContent=playing?'Pause animation':'Play animation'};
+  reduced.addEventListener('change',e=>{playing=!e.matches;if(e.matches)elapsed=18500;button.textContent=playing?'Pause animation':'Play animation'});
+  Promise.all([sprite.decode(),bodySprite.decode()]).then(()=>{
+    // Key only the JPEG's neutral white backdrop; cream-colored fur and
+    // the grey hammer retain their original opacity and pixel edges.
+    armSprite.width=sprite.naturalWidth;armSprite.height=sprite.naturalHeight;
+    const armContext=armSprite.getContext('2d');
+    armContext.drawImage(sprite,0,0);
+    const pixels=armContext.getImageData(0,0,armSprite.width,armSprite.height);
+    for(let i=0;i<pixels.data.length;i+=4){
+      const r=pixels.data[i],g=pixels.data[i+1],b=pixels.data[i+2];
+      if(Math.min(r,g,b)>232&&Math.max(r,g,b)-Math.min(r,g,b)<16)pixels.data[i+3]=0;
+    }
+    armContext.putImageData(pixels,0,0);
+    requestAnimationFrame(frame);
+  });
+</script>
+</html>

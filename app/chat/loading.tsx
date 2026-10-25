@@ -1,7 +1,9 @@
 export default function ChatLoading() {
   return (
-    <main className="flex min-h-[60vh] items-center justify-center px-6 py-12">
-      <p role="status" className="text-sm text-ink-soft">Loading your workspace…</p>
+    <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading your apartments…
+      </p>
     </main>
   );
 }

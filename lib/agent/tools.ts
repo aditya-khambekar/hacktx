@@ -12,6 +12,9 @@ import type { ApartmentProfile } from "../profile";
 import { buildProfile } from "../profile";
 import { searchApartmentWebsites, searchWestCampusMaps } from "../serpapi";
 
+import { recommendApartments } from "../recommendations";
+import { readRecommendationCriteria } from "../recommendation-criteria";
+
 export const MAX_SUGGESTIONS = 3;
 
 export const CHAT_PHASES = [
@@ -32,9 +35,22 @@ export type ToolEmit = {
   suggestion: (profile: ApartmentProfile) => void;
 };
 
-type ToolName = "search_apartments" | "build_profile" | "save_apartment" | "add_label";
+type ToolName = "recommend_apartments" | "search_apartments" | "build_profile" | "save_apartment" | "add_label";
 
 const TOOL_PARAMETERS: Record<ToolName, { description: string; parameters: Record<string, unknown> }> = {
+  recommend_apartments: {
+    description: "Find and rank apartments by enforced same-plan price, bedrooms, bathrooms and amenities. Use for criteria searches such as highest rated under $1100. Defaults: base rent per person, strictly under, resident ratings, exclude SMART restrictions. Returns at most 3 suggestions with actual provider and coverage.",
+    parameters: { type: "object", additionalProperties: false, properties: {
+      maxRent: { type: "number" }, beds: { type: "integer" }, baths: { type: "number" },
+      amenities: { type: "array", items: { type: "string", enum: ["pets", "pool", "parking", "gym", "laundry", "furnished"] } },
+      rankBy: { type: "string", enum: ["resident_rating", "google_rating", "lowest_price"] },
+      priceScope: { type: "string", enum: ["base_rent", "required_recurring"] },
+      priceBasis: { type: "string", enum: ["per person", "per unit"] },
+      comparison: { type: "string", enum: ["under", "at_most"] },
+      roomType: { type: "string", enum: ["any", "private", "shared"] }, allowSmart: { type: "boolean" },
+      minRating: { type: "number" }, minReviewCount: { type: "integer" },
+    } },
+  },
   search_apartments: {
     description:
       "Search West Campus maps for apartments that are not already saved, then keep only places an Austin web result mentions. Returns at most 3 verified places. Does not build profiles or invent listings.",
@@ -92,6 +108,7 @@ const TOOL_PARAMETERS: Record<ToolName, { description: string; parameters: Recor
 };
 
 const ALLOWED_KEYS: Record<ToolName, readonly string[]> = {
+  recommend_apartments: ["maxRent", "beds", "baths", "amenities", "rankBy", "priceScope", "priceBasis", "comparison", "roomType", "allowSmart", "minRating", "minReviewCount"],
   search_apartments: ["query", "beds", "maxRent"],
   build_profile: ["placeId"],
   save_apartment: ["placeId"],
@@ -116,15 +133,17 @@ export type ToolSession = {
 export function createToolSession(userId: string, emit: ToolEmit): ToolSession {
   const cache = new Map<string, ApartmentProfile>();
   const suggestions: ApartmentProfile[] = [];
+  const recommendationState = { used: false };
   return {
     suggestions,
     execute(name, argumentsJson) {
-      return executeAgentTool(name, argumentsJson, { userId, cache, suggestions, emit });
+      return executeAgentTool(name, argumentsJson, { userId, cache, suggestions, emit, recommendationState });
     },
   };
 }
 
 type SessionState = {
+  recommendationState: { used: boolean };
   userId: string;
   cache: Map<string, ApartmentProfile>;
   suggestions: ApartmentProfile[];
@@ -144,6 +163,19 @@ async function executeAgentTool(
     return { error: "rejected_argument" };
   }
 
+  if (name === "recommend_apartments") {
+    const criteria = readRecommendationCriteria(args);
+    if (!criteria) return { error: "invalid_arguments" };
+    if (session.recommendationState.used || session.suggestions.length) return { error: "suggestion_limit", instruction: "One criteria research pass per turn; use existing results." };
+    session.recommendationState.used = true;
+    const result = await recommendApartments(criteria, (phase) => session.emit.status(phase));
+    for (const match of result.matches) {
+      session.cache.set(match.profile.placeId, match.profile);
+      session.suggestions.push(match.profile);
+      session.emit.suggestion(match.profile);
+    }
+    return result;
+  }
   if (name === "search_apartments") return searchApartments(args, session.emit);
   if (name === "build_profile") return buildProfileTool(args, session);
   if (name === "save_apartment") return saveApartment(args, session);

@@ -1,3 +1,5 @@
+import type { CuratedPlan } from "./curated-types";
+
 export type ListingFee = {
   name: string;
   amount: number | null;
@@ -8,6 +10,7 @@ export type ListingFee = {
 };
 
 export type ListingFloorplan = {
+  curated?: CuratedPlan;
   name: string | null;
   beds: number | null;
   baths: number | null;

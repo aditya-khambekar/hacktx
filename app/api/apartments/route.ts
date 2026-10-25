@@ -20,7 +20,10 @@ export async function GET() {
       select: apartmentFields,
       orderBy: { updatedAt: "desc" },
     });
-    return apartmentJson(apartments);
+    return apartmentJson(apartments.map((row) => {
+      const profile = readProfile(row.profile);
+      return profile ? { ...row, name: profile.name, address: profile.address, profile } : row;
+    }));
   } catch (error) {
     return apartmentServerError(error, "list");
   }

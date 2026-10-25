@@ -1,16 +1,19 @@
 "use client";
 import { useState } from "react";
+import { ApartmentLocationMap } from "./apartment-location-map";
 import { ApartmentReviews, RatingStars } from "./apartment-reviews";
 import { FeeBreakdown } from "./fee-breakdown";
 import { ListingPhoto } from "./listing-photo";
-import { formatUsd, toComparisonApartment } from "./costs";
+import { formatUsd, rentDisplay, rentPeriod, toComparisonApartment } from "./costs";
 import { ResearchStatus } from "./research-status";
+import { CuratedDetails } from "./curated-details";
 import type { ComparisonApartment } from "./types";
 
 export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apartment: ComparisonApartment; onBack: () => void; onRetry: () => void }) {
   const [planIndex, setPlanIndex] = useState(0);
   const profile = original.profile;
-  const selectedPlan = profile?.floorplans[planIndex];
+  const selectedPlanIndex = profile?.floorplans[planIndex] ? planIndex : 0;
+  const selectedPlan = profile?.floorplans[selectedPlanIndex];
   const apartment = selectedPlan && profile ? { ...original, ...toComparisonApartment({ ...profile, floorplans: [selectedPlan] }) } : original;
   const loading = original.researchStatus === "loading";
   return <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -23,21 +26,25 @@ export function ApartmentDetail({ apartment: original, onBack, onRetry }: { apar
       <div className="space-y-6">
         <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6" aria-labelledby="detail-pricing">
           <h2 id="detail-pricing" className="text-xl font-semibold">Pricing & fees</h2>
-          {!!profile?.floorplans.length && <label className="mt-4 block text-sm font-medium">Floor plan<select value={planIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-md border border-line bg-paper px-3">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baths ?? "?"} bath</option>)}</select></label>}
-          <p className="mt-5 text-3xl font-semibold tabular-nums">{apartment.advertisedRent === null ? "Rent not found in available sources" : formatUsd(apartment.advertisedRent)}</p><p className="mt-1 text-sm text-ink-soft">{apartment.priceKind === "starting at" ? "Starting monthly base rent" : "Monthly base rent"} · {apartment.rentBasis}</p>
+          {!!profile?.floorplans.length && <label className="mt-4 block text-sm font-medium">Floor plan<select value={selectedPlanIndex} onChange={(event) => setPlanIndex(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-md border border-line bg-paper px-3">{profile.floorplans.map((plan, index) => <option key={index} value={index}>{plan.name ?? `Plan ${index + 1}`} · {plan.beds ?? "?"} bed · {plan.baths ?? "?"} bath</option>)}</select></label>}
+          <p className="mt-5 text-3xl font-semibold tabular-nums">{apartment.advertisedRent === null ? "Rent not found in available sources" : rentDisplay(apartment)}</p><p className="mt-1 text-sm text-ink-soft">{apartment.priceKind === "starting at" ? "Starting base rent" : "Base rent"} {rentPeriod(apartment)} · {apartment.rentBasis}</p>
           {apartment.publishedMonthlyTotal !== null && apartment.publishedMonthlyTotal !== undefined && <p className="mt-3 text-base font-semibold">Inclusive starting price: {formatUsd(apartment.publishedMonthlyTotal)} / mo · {apartment.rentBasis}</p>}
           {selectedPlan?.leaseTerm && <p className="mt-2 text-sm text-ink-soft">{selectedPlan.leaseTerm}</p>}
           <p className="mt-3 text-xs leading-relaxed text-ink-soft">Sourced listing information may be outdated or promotional. Confirm availability, lease dates, and required charges with the property.</p>
           {apartment.rentSourceUrl && /^https?:\/\//i.test(apartment.rentSourceUrl) && <a href={apartment.rentSourceUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm text-clay-dark underline underline-offset-4">Check the listed price</a>}
           {!loading && <button type="button" onClick={onRetry} className="mt-3 block min-h-10 rounded-md border border-line px-3 text-sm font-semibold text-clay-dark">Refresh pricing & research</button>}
           {apartment.fetchedAt && <p className="mt-2 text-xs text-ink-soft">Researched {new Date(apartment.fetchedAt).toLocaleString("en-US", { timeZone: "America/Chicago" })}</p>}
-          <div className="mt-5 [&_section]:text-sm [&_dt]:text-sm [&_dd]:text-sm"><FeeBreakdown key={planIndex} apartment={apartment} defaultOpen /></div>
+          <div className="mt-5 [&_section]:text-sm [&_dt]:text-sm [&_dd]:text-sm"><FeeBreakdown key={selectedPlanIndex} apartment={apartment} defaultOpen /></div>
+          {apartment.profile?.curated && <CuratedDetails profile={apartment.profile} />}
         </section>
         <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6" aria-labelledby="detail-property"><h2 id="detail-property" className="text-xl font-semibold">The property</h2><dl className="mt-4 space-y-4 text-sm leading-relaxed"><div><dt className="font-semibold">Floor plan</dt><dd className="mt-1 text-ink-soft">{apartment.floorPlan.beds ?? "?"} beds · {apartment.floorPlan.baths ?? "?"} baths{selectedPlan?.sqft !== null && selectedPlan?.sqft !== undefined && ` · ${selectedPlan.sqft} sq ft`}</dd></div><div><dt className="font-semibold">Amenities</dt><dd className="mt-1 text-ink-soft">{apartment.amenities.length ? apartment.amenities.join(" · ") : "Not disclosed in the available sources"}</dd></div><div><dt className="font-semibold">Commute to UT Tower</dt><dd className="mt-1 text-ink-soft">Walk: {apartment.walking ? `${apartment.walking.formattedDuration} · ${apartment.walking.formattedDistance}` : "Unavailable"}<br />Bike: {apartment.cycling ? `${apartment.cycling.formattedDuration} · ${apartment.cycling.formattedDistance}` : "Unavailable"}</dd></div><div><dt className="font-semibold">Lease terms</dt><dd className="mt-1 text-ink-soft">{apartment.lease.dates ?? "Confirm lease dates and terms with the property."}</dd></div></dl>
           {profile?.website && /^https?:\/\//i.test(profile.website) && <a href={profile.website} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-sm text-clay-dark underline underline-offset-4">Visit the property website</a>}
         </section>
       </div>
-      <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6 [&_p]:text-sm" aria-labelledby="detail-reviews"><h2 id="detail-reviews" className="mb-5 text-xl font-semibold">Reviews & resident experience</h2><ApartmentReviews apartment={apartment} /></section>
+      <div className="min-w-0 space-y-6">
+        <section className="rounded-xl border border-line bg-paper-raised p-5 sm:p-6 [&_p]:text-sm" aria-labelledby="detail-reviews"><h2 id="detail-reviews" className="mb-5 text-xl font-semibold">Reviews & resident experience</h2><ApartmentReviews apartment={apartment} /></section>
+        <ApartmentLocationMap key={apartment.id} apartment={apartment} />
+      </div>
     </div>
   </div>;
 }

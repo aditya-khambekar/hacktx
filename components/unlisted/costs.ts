@@ -74,7 +74,9 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
       amount: fee.amount,
       cadence: cadence ?? "unknown",
       basis: fee.amount === null ? "unknown" : "published",
-      refundable: /refundable/i.test(fee.conditions ?? "") && !/non-?refundable/i.test(fee.conditions ?? ""),
+      refundable: profile.curated
+        ? profile.curated.fees.some((original) => original.name === fee.name && /refundable/i.test(original.name) && !/non-?refundable/i.test(original.name))
+        : /refundable/i.test(fee.conditions ?? "") && !/non-?refundable/i.test(fee.conditions ?? ""),
       applies: fee.applies,
       conditions: fee.conditions,
       sourceUrl: fee.sourceUrl,
@@ -100,7 +102,7 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     walking: profile.campus.walking,
     cycling: profile.campus.cycling,
     amenities: [...new Set(profile.amenities?.map((amenity) => amenity.name) ?? [])],
-    lease: { months: null, type: null, dates: plan?.leaseTerm ?? null },
+    lease: { months: null, type: profile.curated ? "Published term" : null, dates: profile.curated?.leaseStart && profile.curated.leaseEnd ? `${profile.curated.leaseStart} – ${profile.curated.leaseEnd}` : profile.curated?.leaseNotes?.split(".")[0] ?? plan?.leaseTerm ?? null },
     honestRating: profile.honestRating,
     honestCount: profile.honestCount,
     excludedTour: profile.excludedTour,
@@ -112,4 +114,14 @@ export function toComparisonApartment(profile: ApartmentProfile): ComparisonApar
     photoTone: "stucco",
     isSample: false,
   };
+}
+
+export function rentPeriod(apartment: ComparisonApartment): string {
+  return apartment.profile?.floorplans[0]?.curated?.cadence === "per installment" ? "/ installment" : "/ mo";
+}
+
+export function rentDisplay(apartment: ComparisonApartment): string {
+  const low = apartment.advertisedRent;
+  const high = apartment.profile?.floorplans[0]?.curated?.baseRentMax;
+  return low === null ? "—" : `${formatUsd(low)}${high != null && high > low ? `–${formatUsd(high)}` : ""}`;
 }

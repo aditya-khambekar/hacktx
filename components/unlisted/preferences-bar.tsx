@@ -1,193 +1,98 @@
 "use client";
 
 import { useState } from "react";
-import { formatUsd } from "./costs";
-import { Close, Pencil, Plus } from "./icons";
-import type { Preference } from "./types";
+import { formatUsd, toComparisonApartment } from "./costs";
+import type { ComparisonApartment, Preference } from "./types";
 
-const SUGGESTIONS = ["Pet-friendly", "Furnished", "Parking included", "Private bathroom", "Under 10 min walk", "Pool or gym"];
+const AMENITIES = [
+  { id: "pets", label: "Pet friendly", pattern: /pet[- ]friendly|pets? allowed|dog[- ]friendly|cat[- ]friendly/i },
+  { id: "pool", label: "Pool", pattern: /\bpool\b/i },
+  { id: "parking", label: "Parking", pattern: /\bparking\b|garage/i },
+  { id: "gym", label: "Gym", pattern: /\bgym\b|fitness/i },
+  { id: "laundry", label: "In-unit laundry", pattern: /in[- ]unit (laundry|washer)|washer.*dryer/i },
+  { id: "furnished", label: "Furnished", pattern: /\bfurnished\b/i },
+];
 
 export function budgetFromPreferences(preferences: Preference[]): number | null {
   const budget = preferences.find((p) => p.id === "budget");
-  const amount = budget ? Number(budget.label.replace(/[^\d]/g, "")) : NaN;
+  const amount = budget ? Number(budget.label.match(/[\d,]+/)?.[0].replace(/,/g, "")) : NaN;
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
-const budgetLabel = (amount: number) => `Up to ${formatUsd(amount)} / person`;
-
-function slug(label: string) {
-  return `custom-${label.toLowerCase().replace(/\W+/g, "-")}`;
+/** A display projection only: clearing the priority restores the saved plans. */
+export function bedroomPlanOptions(apartment: ComparisonApartment, preferences: Preference[]): ComparisonApartment {
+  const selected = preferences.find((preference) => preference.id === "beds");
+  const bedrooms = selected ? Number(selected.label.match(/\d+/)?.[0]) : null;
+  if (!bedrooms || !apartment.profile) return apartment;
+  const profile = { ...apartment.profile, floorplans: apartment.profile.floorplans.filter((plan) => plan.beds === bedrooms) };
+  return { ...apartment, ...toComparisonApartment(profile) };
 }
 
-type PreferencesBarProps = {
-  preferences: Preference[];
-  onChange: (preferences: Preference[]) => void;
-};
+/** Evaluate rent and room counts against the SAME sourced floor plan. */
+export function matchesPreferences(apartment: ComparisonApartment, preferences: Preference[]): boolean {
+  if (apartment.researchStatus === "loading" || apartment.researchStatus === "error") return true;
+  const budget = budgetFromPreferences(preferences);
+  const beds = Number(preferences.find((p) => p.id === "beds")?.label.match(/\d+/)?.[0]) || null;
+  const baths = Number(preferences.find((p) => p.id === "baths")?.label.match(/[\d.]+/)?.[0]) || null;
+  const basis = preferences.find((p) => p.id === "budget")?.label.includes("/ unit") ? "per unit" : "per person";
+  const plans = apartment.profile?.floorplans ?? [{ beds: apartment.floorPlan.beds, baths: apartment.floorPlan.baths, baseRent: apartment.advertisedRent, rentBasis: apartment.rentBasis }];
+  const allowUnknownRent = !preferences.some((p) => p.id === "budget-verified");
+  const matchingPlans = plans.length ? plans : [{ beds: apartment.floorPlan.beds, baths: apartment.floorPlan.baths, baseRent: null, rentBasis: null }];
+  if ((budget || beds || baths) && !matchingPlans.some((plan) =>
+    (!beds || plan.beds === beds) && (!baths || (plan.baths !== null && plan.baths >= baths)) &&
+    (!budget || (plan.baseRent === null || !plan.rentBasis || plan.rentBasis === "basis unknown"
+      ? allowUnknownRent
+      : plan.rentBasis === basis && plan.baseRent <= budget))
+  )) return false;
+  return AMENITIES.every((amenity) => !preferences.some((p) => p.id === `amenity-${amenity.id}`) || apartment.amenities.some((name) =>
+    !/\b(no|not|without|unfurnished)\b/i.test(name) && amenity.pattern.test(name)
+  ));
+}
 
-export function PreferencesBar({ preferences, onChange }: PreferencesBarProps) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  const has = (label: string) => preferences.some((p) => p.label.toLowerCase() === label.toLowerCase());
-
-  function startEdit(preference: Preference) {
-    setAdding(false);
-    setEditingId(preference.id);
-    setEditValue(preference.id === "budget" ? String(budgetFromPreferences([preference]) ?? "") : preference.label);
-  }
-
-  function commitEdit() {
-    if (!editingId) return;
-    const value = editValue.trim();
-    if (editingId === "budget") {
-      const amount = Number(value.replace(/[^\d]/g, ""));
-      if (amount > 0) onChange(preferences.map((p) => (p.id === "budget" ? { ...p, label: budgetLabel(amount) } : p)));
-    } else if (value && value.length <= 32) {
-      onChange(preferences.map((p) => (p.id === editingId ? { ...p, label: value } : p)));
-    }
-    setEditingId(null);
-  }
-
-  function add(label: string) {
-    const value = label.trim();
-    if (!value || has(value)) return;
-    onChange([...preferences, value === "Budget" ? { id: "budget", label: budgetLabel(1400) } : { id: slug(value), label: value }]);
-    setDraft("");
-  }
-
-  const suggestions = [...(preferences.some((p) => p.id === "budget") ? [] : ["Budget"]), ...SUGGESTIONS.filter((s) => !has(s))];
-
+type Props = { preferences: Preference[]; onChange: (preferences: Preference[]) => void };
+export function PreferencesBar({ preferences, onChange }: Props) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const budget = budgetFromPreferences(preferences);
+  const basis = preferences.find((p) => p.id === "budget")?.label.includes("/ unit") ? "unit" : "person";
+  const update = (id: string, label: string | null) => onChange([...preferences.filter((p) => p.id !== id), ...(label ? [{ id, label }] : [])]);
+  const setBudget = (amount: number, nextBasis = basis) => update("budget", `Up to ${formatUsd(amount)} / ${nextBasis}`);
+  const selectClass = "mt-2 min-h-10 w-full rounded-md border border-line bg-paper px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-clay";
   return (
-    <section aria-labelledby="priorities-label" className="rounded-[10px] border border-line bg-paper-raised px-4 py-3.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="priorities-label" className="text-[13px] font-semibold text-ink">
-          Your priorities
-        </h2>
-        <p className="text-[11.5px] text-ink-soft">Budget flags rent above your limit. Other priorities are notes, not filters yet.</p>
+    <section aria-labelledby="priorities-label" className="rounded-[10px] border border-line bg-paper-raised p-4">
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="priorities-label" className="text-sm font-semibold text-ink">Your priorities</h2>
+        {!!preferences.length && <button type="button" onClick={() => { onChange([]); setEditing(null); }} className="min-h-9 text-xs font-medium text-clay-dark underline underline-offset-4">Clear filters</button>}
       </div>
-
-      <ul className="mt-3 flex flex-wrap items-center gap-2">
-        {preferences.map((preference) => {
-          const isBudget = preference.id === "budget";
-          const tone = isBudget ? "border-clay/40 bg-clay-tint text-clay-dark" : "border-line bg-chip text-ink";
-          if (editingId === preference.id) {
-            return (
-              <li key={preference.id}>
-                <form
-                  className={`flex h-[32px] items-center gap-1 rounded-md border-2 border-clay bg-paper-raised pr-1 pl-2.5 text-[13px]`}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    commitEdit();
-                  }}
-                >
-                  {isBudget && <span className="text-ink-soft">Up to $</span>}
-                  <label className="sr-only" htmlFor={`edit-${preference.id}`}>
-                    {isBudget ? "Monthly budget per person, in dollars" : `Edit ${preference.label}`}
-                  </label>
-                  <input
-                    id={`edit-${preference.id}`}
-                    autoFocus
-                    inputMode={isBudget ? "numeric" : undefined}
-                    value={editValue}
-                    maxLength={isBudget ? 6 : 32}
-                    onChange={(event) => setEditValue(isBudget ? event.target.value.replace(/[^\d]/g, "") : event.target.value)}
-                    onBlur={commitEdit}
-                    onKeyDown={(event) => event.key === "Escape" && setEditingId(null)}
-                    className={`bg-transparent text-ink focus:outline-none ${isBudget ? "w-14 tabular-nums" : "w-36"}`}
-                  />
-                  {isBudget && <span className="text-ink-soft">/ person</span>}
-                  <button type="submit" onMouseDown={(event) => event.preventDefault()} className="ml-1 rounded bg-clay px-2 py-0.5 text-[11.5px] font-semibold text-white">
-                    Save
-                  </button>
-                </form>
-              </li>
-            );
-          }
-          return (
-            <li key={preference.id} className={`flex h-[32px] items-center rounded-md border text-[13px] ${tone}`}>
-              <button
-                type="button"
-                onClick={() => startEdit(preference)}
-                className="group flex h-full items-center gap-1.5 rounded-l-md pr-1.5 pl-2.5 hover:bg-ink/5"
-                aria-label={`Edit priority: ${preference.label}`}
-              >
-                {preference.label}
-                <Pencil size={13} className="opacity-50 group-hover:opacity-100" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onChange(preferences.filter((p) => p.id !== preference.id))}
-                aria-label={`Remove priority: ${preference.label}`}
-                className="grid h-full w-7 place-items-center rounded-r-md border-l border-current/15 opacity-60 hover:bg-ink/5 hover:opacity-100"
-              >
-                <Close size={13} />
-              </button>
-            </li>
-          );
-        })}
-
-        <li>
-          {adding ? (
-            <form
-              className="flex h-[32px] items-center gap-1 rounded-md border-2 border-clay bg-paper-raised pr-1 pl-2.5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                add(draft);
-              }}
-            >
-              <label className="sr-only" htmlFor="new-preference">
-                New priority
-              </label>
-              <input
-                id="new-preference"
-                autoFocus
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => event.key === "Escape" && setAdding(false)}
-                placeholder="e.g. Quiet building"
-                maxLength={32}
-                className="w-40 bg-transparent text-[13px] placeholder:text-ink-soft focus:outline-none"
-              />
-              <button type="submit" disabled={!draft.trim()} className="rounded bg-clay px-2 py-0.5 text-[11.5px] font-semibold text-white disabled:opacity-40">
-                Add
-              </button>
-              <button type="button" onClick={() => setAdding(false)} aria-label="Stop adding" className="grid h-6 w-6 place-items-center rounded text-ink-soft hover:bg-chip">
-                <Close size={13} />
-              </button>
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setEditingId(null);
-                setAdding(true);
-              }}
-              className="flex h-[32px] items-center gap-1 rounded-md border border-dashed border-clay/60 px-2.5 text-[13px] font-medium text-clay-dark hover:bg-clay-tint"
-            >
-              <Plus size={14} />
-              Add priority
-            </button>
-          )}
-        </li>
-      </ul>
-
-      {adding && suggestions.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[11.5px] text-ink-soft">Suggestions:</span>
-          {suggestions.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onClick={() => add(suggestion)}
-              className="rounded-full border border-line px-2.5 py-1 text-[11.5px] text-ink hover:border-clay/50 hover:bg-clay-tint"
-            >
-              + {suggestion}
-            </button>
-          ))}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {preferences.map((preference) => <span key={preference.id} className="inline-flex items-center rounded-md border border-line bg-chip text-xs">
+          <button type="button" onClick={() => setEditing(preference.id.startsWith("amenity-") ? "amenities" : preference.id === "budget-verified" ? "budget" : preference.id)} className="min-h-8 px-2.5 text-ink hover:bg-clay-tint">{preference.label}</button>
+          <button type="button" aria-label={`Remove ${preference.label}`} onClick={() => update(preference.id, null)} className="min-h-8 px-2 text-ink-soft hover:text-clay-dark">×</button>
+        </span>)}
+        <div className="relative">
+          <button type="button" aria-expanded={editing === "add"} onClick={() => setEditing(editing === "add" ? null : "add")} className="min-h-8 rounded-md border border-dashed border-line px-2.5 text-xs font-medium text-clay-dark hover:bg-clay-tint">+ Add priority</button>
+          {editing === "add" && <div className="absolute left-0 top-full z-20 mt-2 w-44 rounded-lg border border-line bg-paper-raised p-1 shadow-lg">
+            {[['budget','Monthly budget'],['beds','Bedrooms'],['baths','Bathrooms'],['amenities','Amenities']].map(([id,label]) => <button key={id} type="button" onClick={() => { if(id === 'budget' && !budget) setBudget(1500); setEditing(id); }} className="block min-h-10 w-full rounded px-3 text-left text-sm hover:bg-chip">{label}</button>)}
+          </div>}
         </div>
-      )}
+      </div>
+      {editing && editing !== "add" && <div className="mt-3 max-w-md rounded-md border border-line bg-paper p-3">
+        <div className="mb-3 flex justify-between gap-4"><span className="text-xs font-semibold">{editing === "budget" ? "Monthly budget" : editing === "beds" ? "Bedrooms" : editing === "baths" ? "Bathrooms" : "Amenities"}</span><button type="button" onClick={() => setEditing(null)} className="text-xs font-semibold text-clay-dark">Done</button></div>
+      <div className="grid gap-3">
+        {editing === "budget" && <div>
+          <label className="flex items-center justify-between gap-2 text-xs font-medium"><span className="flex items-center gap-2"><input type="checkbox" checked={budget !== null} onChange={(event) => event.target.checked ? setBudget(1500) : update("budget", null)} className="accent-clay" />Maximum monthly rent</span><span className="tabular-nums">{budget ? formatUsd(budget) : "Any price"}</span></label>
+          <label className="mt-3 flex items-center justify-between gap-3 text-xs">Maximum rent ($)<input aria-label="Monthly budget amount" type="number" min="500" max="5000" step="50" value={budget ?? ""} onChange={(event) => { const value=Number(event.target.value); if(value>0) setBudget(value); }} className="w-24 rounded border border-line bg-paper-raised px-2 py-1.5 text-sm tabular-nums" /></label>
+          <input aria-label="Maximum monthly rent" type="range" min="500" max="5000" step="50" value={budget ?? 1500} disabled={budget === null} onChange={(event) => setBudget(Number(event.target.value))} className="mt-4 w-full accent-clay disabled:opacity-30" />
+          <select aria-label="Rent price basis" value={basis} disabled={budget === null} onChange={(event) => setBudget(budget ?? 1500, event.target.value)} className="mt-1 rounded border border-line bg-paper p-1 text-xs disabled:opacity-50"><option value="person">Per person / month</option><option value="unit">Per apartment / month</option></select>
+          <label className="mt-3 flex items-start gap-2 text-xs text-ink-soft"><input type="checkbox" checked={!preferences.some((p) => p.id === "budget-verified")} onChange={(event) => update("budget-verified", event.target.checked ? null : "Confirmed rent only")} className="mt-0.5 accent-clay" />Include apartments with unconfirmed rent or price basis</label>
+        </div>}
+        {editing === "beds" && <label className="text-xs font-medium">Bedrooms<select className={selectClass} value={preferences.find((p) => p.id === "beds")?.label.match(/\d+/)?.[0] ?? ""} onChange={(event) => update("beds", event.target.value ? `${event.target.value} bedrooms` : null)}><option value="">Any</option>{[1,2,3,4,5,10].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>}
+        {editing === "baths" && <label className="text-xs font-medium">Bathrooms<select className={selectClass} value={preferences.find((p) => p.id === "baths")?.label.match(/[\d.]+/)?.[0] ?? ""} onChange={(event) => update("baths", event.target.value ? `${event.target.value}+ bathrooms` : null)}><option value="">Any</option>{[1,1.5,2,2.5,3,4,5,10].map((n) => <option key={n} value={n}>{n}+</option>)}</select></label>}
+      </div>
+      {editing === "amenities" && <fieldset><legend className="mb-2 text-xs font-medium">Must-have amenities</legend><div className="flex flex-wrap gap-2">{AMENITIES.map((amenity) => {
+        const selected = preferences.some((p) => p.id === `amenity-${amenity.id}`);
+        return <button key={amenity.id} type="button" aria-pressed={selected} onClick={() => update(`amenity-${amenity.id}`, selected ? null : amenity.label)} className={`min-h-9 rounded-md border px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay-tint text-clay-dark" : "border-line bg-paper text-ink hover:bg-chip"}`}>{amenity.label}</button>;
+      })}</div></fieldset>}
+      </div>}
     </section>
   );
 }
