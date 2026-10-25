@@ -54,6 +54,8 @@ function computeHighlights(apartments: ComparisonApartment[]) {
 }
 
 type ApartmentComparisonProps = {
+  onOpen: (id: string) => void;
+  onRefresh: (apartment: ComparisonApartment) => void;
   apartments: ComparisonApartment[];
   sort: SortKey;
   onSortChange: (sort: SortKey) => void;
@@ -67,6 +69,8 @@ type ApartmentComparisonProps = {
 };
 
 export function ApartmentComparison({
+  onOpen,
+  onRefresh,
   apartments,
   sort,
   onSortChange,
@@ -153,10 +157,10 @@ export function ApartmentComparison({
         </div>
       </div>
 
-      {apartments.length === 0 ? (
-        emptyState
-      ) : mode === "map" ? (
+      {mode === "map" ? (
         <CampusMap apartments={sorted} activeId={activeId} onSelect={onSelect} />
+      ) : apartments.length === 0 ? (
+        emptyState
       ) : (
         <>
           {/* Phones show one property at a time, picked here. */}
@@ -181,6 +185,8 @@ export function ApartmentComparison({
               <ApartmentColumn
                 key={apartment.id}
                 apartment={apartment}
+                onOpen={() => onOpen(apartment.id)}
+                onRefresh={() => onRefresh(apartment)}
                 rows={rows}
                 highlight={highlights.get(apartment.id) ?? null}
                 budget={budget}

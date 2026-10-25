@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { buildProfile } from "@/lib/profile";
+import { researchApartment } from "@/lib/research-cache";
 import { withSerpBudget } from "@/lib/serpapi";
 import {
   apartmentFields,
@@ -26,7 +26,7 @@ export async function POST(
     });
     if (!existing) return apartmentJson({ error: "not_found" }, 404);
 
-    const profile = await withSerpBudget(() => buildProfile(existing.placeId)).catch(() => null);
+    const profile = await withSerpBudget(() => researchApartment(existing.placeId, true)).catch(() => null);
     if (!profile) return apartmentJson({ error: "refresh_failed" }, 502);
 
     const apartment = await apartmentTransaction(async (tx) => {

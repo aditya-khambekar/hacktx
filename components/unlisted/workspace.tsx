@@ -1,24 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ApartmentDetail } from "./apartment-detail";
 import { AddApartmentDialog } from "./add-apartment-dialog";
 import { ApartmentComparison, type SortKey } from "./apartment-comparison";
 import { AssistantPanel, type ChatMessage } from "./assistant-panel";
 import { ArrowUpRight, Plus, Receipt, Sparkle } from "./icons";
 import { PreferencesBar, budgetFromPreferences } from "./preferences-bar";
 import { introMessage, replyTo, tradeoffSummary } from "./sample-assistant";
-import { SAMPLE_CATALOG, SAMPLE_PREFERENCES, SAMPLE_SHORTLIST } from "./sample-data";
 import { SiteHeader, type WorkspaceView } from "./site-header";
-import type { ComparisonApartment, Preference } from "./types";
+import { toComparisonApartment } from "./costs";
+import type { ApartmentProfile, ComparisonApartment, Preference } from "./types";
+
+function subscribeToNavigation(callback: () => void) {
+  window.addEventListener("popstate", callback);
+  window.addEventListener("unlisted:navigate", callback);
+  return () => { window.removeEventListener("popstate", callback); window.removeEventListener("unlisted:navigate", callback); };
+}
+function detailLocation() { return new URLSearchParams(window.location.search).get("apartment") ?? ""; }
 
 let messageCount = 0;
 const nextMessageId = () => `m${++messageCount}`;
 
 export function Workspace() {
+  const detailId = useSyncExternalStore(subscribeToNavigation, detailLocation, () => "");
+  const [loaded, setLoaded] = useState(false);
+  function openApartment(id: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("apartment", id);
+    window.history.pushState({ unlistedDetail: true }, "", url);
+    window.dispatchEvent(new Event("unlisted:navigate"));
+    window.scrollTo({ top: 0 });
+  }
+  function closeApartment() {
+    if (window.history.state?.unlistedDetail) { window.history.back(); return; }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("apartment");
+    window.history.replaceState(null, "", url);
+    window.dispatchEvent(new Event("unlisted:navigate"));
+  }
   const [view, setView] = useState<WorkspaceView>("workspace");
-  const [shortlist, setShortlist] = useState<ComparisonApartment[]>(SAMPLE_SHORTLIST);
+  const [shortlist, setShortlist] = useState<ComparisonApartment[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
-  const [preferences, setPreferences] = useState<Preference[]>(SAMPLE_PREFERENCES);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
   const [sort, setSort] = useState<SortKey>("added");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -29,6 +53,23 @@ export function Workspace() {
   const replyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(replyTimer.current), []);
+
+  useEffect(() => {
+    const request = new AbortController();
+    fetch("/api/apartments", { signal: request.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const rows: { id: string; profile: ApartmentProfile }[] = await response.json();
+        if (!request.signal.aborted) setShortlist((current) => {
+          const saved = rows.map((row) => ({ ...toComparisonApartment(row.profile), databaseId: row.id }));
+          const active = current.filter((item) => item.researchStatus === "loading" || item.researchStatus === "error");
+          return [...saved.filter((item) => !active.some((pending) => pending.id === item.id)), ...active];
+        });
+      })
+      .catch(() => { /* Signed-out visitors start with an empty dashboard. */ })
+      .finally(() => { if (!request.signal.aborted) setLoaded(true); });
+    return () => request.abort();
+  }, []);
 
   const visible = view === "saved" ? shortlist.filter((a) => savedIds.has(a.id)) : shortlist;
   const budget = budgetFromPreferences(preferences);
@@ -68,6 +109,32 @@ export function Workspace() {
     });
   }
 
+  const researchingIds = useRef(new Set<string>());
+
+  async function research(apartment: ComparisonApartment, force = false) {
+    if (researchingIds.current.has(apartment.id)) return;
+    researchingIds.current.add(apartment.id);
+    setShortlist((current) => current.map((item) => item.id === apartment.id ? { ...item, researchStatus: "loading", researchError: undefined } : item));
+    try {
+      const url = force && apartment.databaseId
+        ? `/api/apartments/${encodeURIComponent(apartment.databaseId)}/refresh`
+        : `/api/apartments/discover/${encodeURIComponent(apartment.id)}`;
+      const response = await fetch(url, { method: "POST" });
+      if (!response.ok) throw new Error(response.status === 401 ? "Sign in to research and save this apartment." : "Research failed. Your previous information is kept. Try again.");
+      const result = await response.json();
+      let saved = result;
+      if (!(force && apartment.databaseId)) {
+        const save = await fetch("/api/apartments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profile: result }) });
+        if (!save.ok) throw new Error("Couldn’t save the research. Please try again.");
+        saved = await save.json();
+      }
+      const updated = { ...toComparisonApartment(saved.profile), databaseId: saved.id, researchStatus: "ready" as const };
+      setShortlist((current) => current.map((item) => item.id === apartment.id ? updated : item));
+    } catch (failure) {
+      setShortlist((current) => current.map((item) => item.id === apartment.id ? { ...item, researchStatus: "error", researchError: failure instanceof Error ? failure.message : "Research failed. Try again." } : item));
+    } finally { researchingIds.current.delete(apartment.id); }
+  }
+
   async function share() {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -89,7 +156,7 @@ export function Workspace() {
       {view === "workspace" && (
         <button type="button" onClick={() => setAddOpen(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-clay px-4 text-[13px] font-semibold text-white hover:bg-clay-dark">
           <Plus size={16} />
-          Add another place
+          Add apartment
         </button>
       )}
     </div>
@@ -99,20 +166,30 @@ export function Workspace() {
     <>
       <SiteHeader
         view={view}
-        onViewChange={setView}
+        onViewChange={(next) => { if (detailId) closeApartment(); setView(next); }}
         savedCount={savedIds.size}
-        saveStatus="Sample session · not saved"
+        saveStatus={shortlist.some((apartment) => apartment.researchStatus === "loading") ? "Researching apartment details…" : shortlist.some((apartment) => apartment.researchStatus === "error") ? "Some apartments need attention" : shortlist.length ? "Added apartments saved" : "No apartments added"}
         onShare={share}
         shareLabel={shareLabel}
       />
 
-      <div className="grid w-full flex-1 lg:grid-cols-[minmax(0,1fr)_368px]">
+      <div className={`grid w-full flex-1 ${detailId ? "" : "lg:grid-cols-[minmax(0,1fr)_368px]"}`}>
         <main className="flex min-w-0 flex-col gap-6 px-4 pt-[26px] pb-28 sm:px-6 lg:px-8 lg:pb-10">
+          {detailId ? (() => {
+            const apartment = shortlist.find((item) => item.id === detailId);
+            return apartment ? <ApartmentDetail key={apartment.id} apartment={apartment} onBack={closeApartment} onRetry={() => { void research(apartment, true); }} /> : <div className="py-12"><p>{loaded ? "This apartment is not on your dashboard. Sign in or add it to view its details." : "Loading apartment details…"}</p><button type="button" onClick={closeApartment} className="mt-4 min-h-10 rounded-md border border-line px-4">Back to all apartments</button></div>;
+          })() : <>
           <h1 className="sr-only">{view === "saved" ? "Saved places" : "Fall 2027 shortlist"}</h1>
 
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div><h2 className="text-2xl text-ink">Your apartment shortlist</h2><p className="mt-1 text-sm text-ink-soft">Find a specific place and compare it on your own terms.</p></div>
+            <button type="button" onClick={() => setAddOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-clay px-4 text-sm font-semibold text-white hover:bg-clay-dark"><Plus size={17} />Add apartment</button>
+          </div>
           <PreferencesBar preferences={preferences} onChange={setPreferences} />
 
           <ApartmentComparison
+            onOpen={openApartment}
+            onRefresh={(apartment) => { void research(apartment, true); }}
             apartments={visible}
             sort={sort}
             onSortChange={setSort}
@@ -159,16 +236,17 @@ export function Workspace() {
                 administrators.
               </p>
               <p className="mt-2 text-[10.5px] leading-relaxed text-ink-soft">
-                Published = listed by the property. Estimate (~) = sample example. Unknown = not disclosed in the current listing. Absence of a fee does
+                Published = listed by the property. Estimate (~) = approximate cost. Unknown = not disclosed in the current listing. Absence of a fee does
                 not mean it is zero.
               </p>
             </div>
           </section>
+          </>}
         </main>
 
-        <AssistantPanel
+        {!detailId && <AssistantPanel
           apartments={shortlist}
-          intro={introMessage(shortlist)}
+          intro={introMessage()}
           messages={messages}
           pending={pending}
           onSend={send}
@@ -178,10 +256,10 @@ export function Workspace() {
           onFocusChange={setSelectedId}
           open={assistantOpen}
           onClose={closeAssistant}
-        />
+        />}
       </div>
 
-      {!assistantOpen && (
+      {!detailId && !assistantOpen && (
         <button
           type="button"
           onClick={() => setAssistantOpen(true)}
@@ -195,13 +273,13 @@ export function Workspace() {
       <AddApartmentDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        catalog={SAMPLE_CATALOG}
         shortlistIds={new Set(shortlist.map((a) => a.id))}
         onAdd={(apartment) => {
-          setShortlist((current) => [...current, apartment]);
+          setShortlist((current) => [...current.filter((item) => item.id !== apartment.id), apartment]);
           setView("workspace");
           setSelectedId(apartment.id);
           setAddOpen(false);
+          void research(apartment);
         }}
       />
     </>

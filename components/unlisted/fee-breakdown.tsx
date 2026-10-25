@@ -65,9 +65,9 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
   const costs = summarizeCosts(apartment);
   const monthlyTotal =
     costs.monthlyTotal === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(costs.monthlyTotal)} / mo`;
-  const moveInTotal = formatUsd(costs.oneTimeTotal);
+  const moveInTotal = costs.oneTimeFees.length === 0 ? "Not listed" : `${formatUsd(costs.oneTimeTotal)}${costs.oneTimeUnknownCount > 0 ? " + unknown" : ""}`;
   const monthlyFeeSum = costs.monthlyTotal === null || costs.rent === null ? null : costs.monthlyTotal - costs.rent;
-  const feeCount = costs.monthlyFees.length + costs.oneTimeFees.length;
+  const feeCount = apartment.fees.length;
   const rent = apartment.advertisedRent === null ? "Not published" : `${formatUsd(apartment.advertisedRent)} / mo`;
 
   return (
@@ -95,7 +95,7 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
               <Row key={fee.name} label={feeLabel(fee)} value={feeValue(fee, "/ mo")} />
             ))}
             <div className="mt-1 border-t border-line pt-1">
-              <Row label={costs.monthlyHasEstimate ? "Est. monthly total" : "Monthly total"} value={monthlyTotal} strong />
+              <Row label={(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known monthly subtotal" : costs.monthlyHasEstimate ? "Est. monthly total" : "Monthly total"} value={monthlyTotal} strong />
             </div>
           </dl>
 
@@ -107,7 +107,7 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
                 <Row key={fee.name} label={feeLabel(fee)} value={feeValue(fee, null)} />
               ))}
               <div className="mt-1 border-t border-line pt-1">
-                <Row label="Move-in total" value={moveInTotal} strong />
+                <Row label="Known one-time charges" value={moveInTotal} strong />
               </div>
             </dl>
             {costs.oneTimeUnknownCount > 0 && (
@@ -115,8 +115,9 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
             )}
           </div>
 
+          {!!costs.unclassifiedFees.length && <div className="mt-3 border-t border-line pt-2"><GroupHeading>Fees with an undisclosed frequency</GroupHeading><dl>{costs.unclassifiedFees.map((fee) => <Row key={fee.name} label={fee.name} value={feeValue(fee, null)} />)}</dl><p className="mt-1 text-xs text-ink-soft">Excluded from monthly and one-time totals until the property confirms the frequency.</p></div>}
           <dl className="mt-1 border-t border-line pt-0.5">
-            <Row label="Source" value={apartment.isSample ? "Sample listing" : "Listing search"} />
+            <Row label="Source" value={apartment.isSample ? "Sample listing" : "Search snippets"} />
           </dl>
         </div>
       ) : (
@@ -127,7 +128,7 @@ export function FeeBreakdown({ apartment, title = "Fee breakdown", defaultOpen =
             value={monthlyFeeSum === null ? "Unknown" : `${costs.monthlyHasEstimate ? "~" : ""}${formatUsd(monthlyFeeSum)} / mo`}
           />
           <div className="mt-1 border-t border-line pt-1">
-            <Row label={costs.monthlyHasEstimate ? "Est. monthly total" : "Monthly total"} value={monthlyTotal} strong />
+            <Row label={(costs.monthlyUnknownCount || costs.unclassifiedFees.length || !apartment.fees.length) ? "Known monthly subtotal" : costs.monthlyHasEstimate ? "Est. monthly total" : "Monthly total"} value={monthlyTotal} strong />
           </div>
           <div className="mt-1 border-t border-dashed border-clay/40 pt-1">
             <Row label={<span className="text-clay-dark">One-time at move-in</span>} value={moveInTotal} />

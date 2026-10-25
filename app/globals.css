@@ -1,10 +1,24 @@
 @import "tailwindcss";
-@import "tw-animate-css";
+@import "../node_modules/tw-animate-css/dist/tw-animate.css";
 @import "shadcn/tailwind.css";
+@import "../node_modules/maplibre-gl/dist/maplibre-gl.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-paper: var(--background);
+  --color-paper-raised: var(--card);
+  --color-ink: #1f352e;
+  --color-ink-soft: #62685f;
+  --color-line: var(--border);
+  --color-brand: #1f352e;
+  --color-clay: #b54a25;
+  --color-clay-dark: #943c1e;
+  --color-clay-tint: #faece4;
+  --color-sage: #e8eddf;
+  --color-sage-ink: #43583b;
+  --color-chip: #f0eee7;
+  --color-toggle: #d5d8ce;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);

@@ -31,6 +31,7 @@ function monthly(apartment: ComparisonApartment) {
 
 export function tradeoffSummary(apartments: ComparisonApartment[]): { title: string; body: string } | null {
   if (apartments.length < 2) return null;
+  if (apartments.some((apartment) => apartment.walking === null || apartment.advertisedRent === null)) return null;
   const closest = byWalk(apartments)[0];
   const cheapest = byRent(apartments)[0];
   if (closest.id === cheapest.id) {
@@ -50,17 +51,8 @@ export function tradeoffSummary(apartments: ComparisonApartment[]): { title: str
   };
 }
 
-export function introMessage(apartments: ComparisonApartment[]): string {
-  if (apartments.length === 0) return "Add apartments to your board and I'll walk through the tradeoffs with you.";
-  if (apartments.length === 1) {
-    return `${apartments[0].name} is the only place on your board. Add another to compare rent, fees, and the walk to campus.`;
-  }
-  const closest = byWalk(apartments)[0];
-  const cheapest = byRent(apartments)[0];
-  if (closest.id === cheapest.id) {
-    return `${shortName(closest)} is both the shortest walk and the lowest rent. Want me to check what else it costs?`;
-  }
-  return `${shortName(closest)} is the shortest walk; ${shortName(cheapest)} gives you more room in your budget. Want me to prioritize price or the walk to class?`;
+export function introMessage(): string {
+  return "Tell me what matters in your next home: your budget, commute, or must-haves. You can also use Add apartment to search for a specific place.";
 }
 
 export function draftContactMessage(apartment: ComparisonApartment): string {
@@ -71,7 +63,7 @@ export function replyTo(question: string, apartments: ComparisonApartment[]): As
   const q = question.toLowerCase();
 
   if (/^add\b|add (another|a) place/.test(q)) {
-    return { text: "Pick a place from the sample catalog to add it to your board.", action: { type: "add" } };
+    return { text: "Search by apartment name or address, then choose a result to add to your board.", action: { type: "add" } };
   }
 
   if (apartments.length === 0) {
@@ -107,7 +99,7 @@ export function replyTo(question: string, apartments: ComparisonApartment[]): As
 
   if (/cheap|lower rent|rent|price|budget|afford|cost/.test(q)) {
     const ranked = byRent(apartments);
-    const list = ranked.map((a) => `${a.name}: ${formatUsd(a.advertisedRent ?? 0)} base rent, ${monthly(a)} with monthly fees`).join(". ");
+    const list = ranked.map((a) => `${a.name}: ${a.advertisedRent === null ? "unknown" : formatUsd(a.advertisedRent)} base rent, ${monthly(a)} with monthly fees`).join(". ");
     return {
       text: `Sorted by base rent. ${list}. Advertised rent leaves out utilities and parking.`,
       action: { type: "sort", sort: "rent" },

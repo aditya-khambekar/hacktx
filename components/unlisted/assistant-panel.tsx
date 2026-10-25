@@ -240,9 +240,9 @@ export function AssistantPanel({
           </div>
 
           {focused && (
-            <PanelCard title="Extra housing costs" pill="Sample / unverified">
+            <PanelCard title="Extra housing costs" pill={focused.isSample ? "Sample / unverified" : "Check with property"}>
               <p className="mt-3 text-[14px] leading-[21px] text-ink">
-                I pulled a few extra cost examples from the property information. Keep in mind that published, estimated, and unknown charges are not the
+                Review the available cost information for this apartment. Keep in mind that published, estimated, and unknown charges are not the
                 same thing.
               </p>
               <div className="mt-3 mb-2.5">

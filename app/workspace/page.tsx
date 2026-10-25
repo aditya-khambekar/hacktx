@@ -1,5 +1,5 @@
-import { Workspace } from "@/components/unlisted/workspace";
+import { redirect } from "next/navigation";
 
 export default function WorkspacePage() {
-  return <Workspace />;
+  redirect("/chat");
 }

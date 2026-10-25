@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { ChevronDown, Close, Cloud, Menu, Share } from "./icons";
-import { Logo } from "./logo";
 
 export type WorkspaceView = "workspace" | "saved";
 
@@ -47,12 +46,7 @@ export function SiteHeader({ view, onViewChange, savedCount, saveStatus, onShare
   });
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper-raised">
-      <div className="flex h-[70px] items-center gap-4 px-4 sm:px-6 lg:pr-8 lg:pl-[26px]">
-        <Link href="/workspace" className="shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-clay" aria-label="Unlisted home">
-          <Logo />
-        </Link>
-
+    <AppHeader>
         <label className="relative ml-3 hidden items-center sm:flex">
           <span className="sr-only">Campus</span>
           <select
@@ -98,10 +92,9 @@ export function SiteHeader({ view, onViewChange, savedCount, saveStatus, onShare
             {menuOpen ? <Close size={20} /> : <Menu size={20} />}
           </button>
         </div>
-      </div>
 
       {menuOpen && (
-        <nav id="mobile-nav" aria-label="Primary" className="flex flex-col border-t border-line px-4 pt-1 pb-4 md:hidden">
+        <nav id="mobile-nav" aria-label="Primary" className="absolute inset-x-0 top-full flex flex-col border-b border-line bg-paper-raised px-4 pt-1 pb-4 md:hidden">
           {navItems}
           <button
             type="button"
@@ -116,6 +109,6 @@ export function SiteHeader({ view, onViewChange, savedCount, saveStatus, onShare
           </button>
         </nav>
       )}
-    </header>
+    </AppHeader>
   );
 }

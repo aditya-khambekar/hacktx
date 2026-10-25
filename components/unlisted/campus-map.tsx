@@ -1,104 +1,66 @@
+"use client";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import { UT_TOWER, type CampusJourney } from "@/lib/campus";
 import type { ComparisonApartment } from "./types";
+const StreetMap = dynamic(() => import("./street-campus-map"), { ssr: false, loading: () => <div className="grid h-[440px] place-items-center bg-sage text-sm">Loading street map…</div> });
 
-const UT_TOWER = { lat: 30.2862, lng: -97.7394 };
-const BOUNDS = { north: 30.2945, south: 30.2835, west: -97.7525, east: -97.7365 };
-const WIDTH = 640;
-const HEIGHT = 420;
-
-function project({ lat, lng }: { lat: number; lng: number }) {
-  return {
-    x: ((lng - BOUNDS.west) / (BOUNDS.east - BOUNDS.west)) * WIDTH,
-    y: ((BOUNDS.north - lat) / (BOUNDS.north - BOUNDS.south)) * HEIGHT,
-  };
-}
-
-type CampusMapProps = {
-  apartments: ComparisonApartment[];
-  activeId: string | null;
-  onSelect: (id: string) => void;
-};
-
-/** Schematic of West Campus: straight-line positions relative to the UT Tower, not a street map. */
-export function CampusMap({ apartments, activeId, onSelect }: CampusMapProps) {
-  const tower = project(UT_TOWER);
-  const placed = apartments.filter((apartment) => apartment.coords);
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper-raised">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-auto w-full" role="img" aria-label="Schematic map of shortlisted apartments and the UT Tower">
-          <rect width={WIDTH} height={HEIGHT} fill="var(--color-sage)" />
-          {[60, 140, 220, 300, 380].map((y) => (
-            <line key={`h${y}`} x1="0" x2={WIDTH} y1={y} y2={y} stroke="#fff" strokeWidth="6" opacity="0.7" />
-          ))}
-          {[80, 180, 280, 380, 480, 580].map((x) => (
-            <line key={`v${x}`} y1="0" y2={HEIGHT} x1={x} x2={x} stroke="#fff" strokeWidth="6" opacity="0.7" />
-          ))}
-          <rect x={tower.x - 70} y={tower.y - 60} width="160" height="140" rx="8" fill="#d5dec7" />
-          <text x={tower.x + 10} y={tower.y + 64} textAnchor="middle" fontSize="13" fill="var(--color-ink-soft)">
-            UT campus
-          </text>
-          {placed.map((apartment) => {
-            const point = project(apartment.coords!);
-            return (
-              <line key={`l-${apartment.id}`} x1={point.x} y1={point.y} x2={tower.x} y2={tower.y} stroke="var(--color-ink)" strokeDasharray="4 5" opacity="0.35" />
-            );
-          })}
-          <g transform={`translate(${tower.x} ${tower.y})`}>
-            <rect x="-7" y="-22" width="14" height="30" fill="var(--color-ink)" />
-            <path d="M-7 -22 L0 -32 L7 -22 Z" fill="var(--color-ink)" />
-            <text y="26" textAnchor="middle" fontSize="14" fontWeight="600" fill="var(--color-ink)">
-              UT Tower
-            </text>
-          </g>
-          {placed.map((apartment, index) => {
-            const point = project(apartment.coords!);
-            const active = apartment.id === activeId;
-            return (
-              <g
-                key={apartment.id}
-                transform={`translate(${point.x} ${point.y})`}
-                onClick={() => onSelect(apartment.id)}
-                className="cursor-pointer"
-              >
-                <circle r={active ? 17 : 14} fill={active ? "var(--color-clay)" : "var(--color-ink)"} stroke="#fff" strokeWidth="3" />
-                <text y="5" textAnchor="middle" fontSize="14" fontWeight="700" fill="#fff">
-                  {index + 1}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-        <p className="border-t border-line px-4 py-2 text-xs text-ink-soft">Schematic positions from sample coordinates. Times are walking routes to the UT Tower.</p>
-      </div>
-
-      <ol className="flex flex-col gap-2">
-        {placed.map((apartment, index) => {
-          const active = apartment.id === activeId;
-          return (
-            <li key={apartment.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(apartment.id)}
-                aria-pressed={active}
-                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm ${
-                  active ? "border-clay bg-clay-tint/60" : "border-line bg-paper-raised hover:border-ink/30"
-                }`}
-              >
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${active ? "bg-clay" : "bg-ink"}`}>
-                  {index + 1}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{apartment.name}</span>
-                  <span className="text-ink-soft">
-                    {apartment.walking?.formattedDuration ?? "—"} walk · {apartment.cycling?.formattedDuration ?? "—"} bike
-                  </span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+type Props = { apartments: ComparisonApartment[]; activeId: string | null; onSelect: (id: string) => void };
+export function CampusMap({ apartments, activeId, onSelect }: Props) {
+  const [journeys, setJourneys] = useState<CampusJourney[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const ids = JSON.stringify(apartments.filter((apartment) => apartment.databaseId).map((apartment) => apartment.id));
+  useEffect(() => {
+    const request = new AbortController();
+    const load = async () => {
+      setLoading(true);
+      setJourneys([]);
+      setErrors({});
+      const placeIds: string[] = JSON.parse(ids);
+      const results = await Promise.all(placeIds.map(async (placeId) => {
+        try {
+          const response = await fetch("/api/apartments/campus-map", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ placeId }), signal: request.signal });
+          if (!response.ok) throw new Error(response.status === 401 ? "Sign in to load Google Maps distances." : "Location or route unavailable. Try again.");
+          return { placeId, data: await response.json() as CampusJourney };
+        } catch (failure) { return { placeId, error: failure instanceof Error ? failure.message : "Map data unavailable." }; }
+      }));
+      if (request.signal.aborted) return;
+      setJourneys(results.flatMap((result) => result.data ? [result.data] : []));
+      setErrors(Object.fromEntries(results.flatMap((result) => result.error ? [[result.placeId, result.error]] : [])));
+      setLoading(false);
+    };
+    void load();
+    return () => request.abort();
+  }, [ids, retry]);
+  const selectedJourney = journeys.find((journey) => journey.placeId === activeId) ?? journeys[0];
+  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+  const embedParams = new URLSearchParams({ key: googleKey ?? "", maptype: "roadmap", language: "en" });
+  if (selectedJourney) {
+    embedParams.set("origin", `${selectedJourney.coords.lat},${selectedJourney.coords.lng}`);
+    embedParams.set("destination", `${UT_TOWER.lat},${UT_TOWER.lng}`);
+    embedParams.set("mode", "walking");
+    embedParams.set("units", "imperial");
+  } else {
+    embedParams.set("q", "UT Tower, Austin, TX");
+    embedParams.set("zoom", "15");
+  }
+  const names = new Map(apartments.map((apartment) => [apartment.id, apartment.name]));
+  return <section aria-label="Apartments and campus map" className="space-y-4">
+    <div><h3 className="text-lg font-semibold">Walking to the UT Tower</h3><p className="mt-1 text-xs text-ink-soft">Walking and biking distances from Google Maps via SerpAPI. Select an apartment to see its route.</p></div>
+    {!apartments.length && <p className="text-sm text-ink-soft">Explore campus and the surrounding streets. Apartments appear here when you add them.</p>}
+    {loading && <p role="status" className="text-sm text-ink-soft">Loading apartment locations and routes…</p>}
+    <div className={`grid gap-4 ${apartments.length ? "xl:grid-cols-[minmax(0,1fr)_16rem]" : ""}`}>
+      <div className="min-w-0 overflow-hidden rounded-xl border border-line">{googleKey ? <iframe title={selectedJourney ? `Google Maps walking route to the UT Tower` : "Google Maps around the UT Tower"} src={`https://www.google.com/maps/embed/v1/${selectedJourney ? "directions" : "place"}?${embedParams}`} className="h-[520px] w-full border-0 sm:h-[580px]" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <><StreetMap journeys={journeys} activeId={activeId} onSelect={onSelect} />{!!journeys.length && <p className="px-4 py-3 text-xs text-ink-soft">Open the walking route in Google Maps to see the street-by-street pedestrian path.</p>}</>}<p className="bg-paper-raised px-4 py-3 text-xs leading-relaxed text-ink-soft">Distances are walking routes to the UT Tower, not straight-line distances.</p></div>
+      {!!apartments.length && <ol className="space-y-3">{apartments.map((apartment) => {
+        const journey = journeys.find((item) => item.placeId === apartment.id);
+        const number = journeys.findIndex((item) => item.placeId === apartment.id) + 1;
+        const mapsLink = journey ? `https://www.google.com/maps/dir/?api=1&origin=${journey.coords.lat},${journey.coords.lng}&destination=${UT_TOWER.lat},${UT_TOWER.lng}&travelmode=walking` : null;
+        return <li key={apartment.id} className={`rounded-lg border p-3 ${activeId === apartment.id ? "border-clay bg-clay-tint" : "border-line bg-paper-raised"}`}><button type="button" onClick={() => onSelect(apartment.id)} aria-pressed={activeId === apartment.id} className="w-full text-left text-sm font-semibold">{number > 0 ? `${number}. ` : ""}{names.get(apartment.id)}</button>{journey ? <><p className="mt-2 text-xs leading-relaxed text-ink-soft">{UT_TOWER.name}</p><p className="mt-2 text-xs">Walk: {journey.walking ? `${journey.walking.formatted_duration} · ${journey.walking.formatted_distance}` : "Unavailable"}</p><p className="mt-1 text-xs">Bike: {journey.cycling ? `${journey.cycling.formatted_duration} · ${journey.cycling.formatted_distance}` : "Unavailable"}</p><a href={mapsLink!} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-semibold text-clay-dark underline underline-offset-4">Open walking route in Google Maps</a></> : <p className="mt-2 text-xs text-ink-soft">{errors[apartment.id] ?? (apartment.databaseId ? "Loading location…" : "Map details appear after research is saved.")}</p>}</li>;
+      })}</ol>}
     </div>
-  );
+    {(!!Object.keys(errors).length || journeys.some((journey) => !journey.walking || !journey.cycling)) && <button type="button" disabled={loading} onClick={() => setRetry((value) => value + 1)} className="min-h-10 rounded-md border border-line px-3 text-sm disabled:opacity-50">Retry map data</button>}
+
+  </section>;
 }

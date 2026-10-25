@@ -58,7 +58,7 @@ const STEPS = [
 function PrimaryCta({ children = "Open your workspace" }: { children?: ReactNode }) {
   return (
     <Link
-      href="/workspace"
+      href="/chat"
       className="inline-flex h-12 items-center gap-2 rounded-lg bg-clay px-5 text-[15px] font-semibold text-white shadow-sm hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
     >
       {children}
@@ -87,7 +87,7 @@ export function LandingPage() {
             </a>
           </nav>
           <Link
-            href="/workspace"
+            href="/chat"
             className="ml-auto inline-flex h-[37px] items-center rounded-md border border-line px-3.5 text-[13px] font-semibold whitespace-nowrap hover:border-ink/30"
           >
             Open workspace

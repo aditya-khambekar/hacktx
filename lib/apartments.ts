@@ -100,7 +100,17 @@ export function normalizeLabels(value: unknown): string[] | null {
 }
 
 export function readProfile(value: unknown): ApartmentProfile | null {
-  if (!profileShape(value)) return null;
+  if (!isRecord(value)) return null;
+  const { amenities, propertyFees, ...base } = value;
+  if (amenities !== undefined && !array(object({ name: nonempty, sourceUrl: nonempty }))(amenities)) return null;
+  if (propertyFees !== undefined && !array(object({ name: nonempty, amount: nullable(nonnegative), cadence: nullable(string), sourceUrl: nonempty }))(propertyFees)) return null;
+  const plans = Array.isArray(base.floorplans) ? base.floorplans.map((plan) => {
+    if (!isRecord(plan)) return plan;
+    const { rentBasis, ...original } = plan;
+    if (rentBasis !== undefined && rentBasis !== null && rentBasis !== "per person" && rentBasis !== "per unit") return null;
+    return original;
+  }) : base.floorplans;
+  if (!profileShape({ ...base, floorplans: plans })) return null;
   const profile = value as ApartmentProfile;
   const labels = normalizeLabels(profile.labels);
   if (!labels) return null;

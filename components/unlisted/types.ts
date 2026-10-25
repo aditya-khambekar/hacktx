@@ -33,6 +33,7 @@ export type ApartmentProfile = {
     baths: number | null;
     sqft: number | null;
     baseRent: number | null;
+    rentBasis?: "per person" | "per unit" | null;
     sourceUrl: string | null;
     fees: Array<{ name: string; amount: number | null; cadence: string | null }>;
   }>;
@@ -46,10 +47,12 @@ export type ApartmentProfile = {
     about: "tour" | "apartment" | "unclear";
     reason: string;
   }>;
+  amenities?: Array<{ name: string; sourceUrl: string }>;
+  propertyFees?: Array<{ name: string; amount: number | null; cadence: string | null; sourceUrl: string }>;
   sources: string[];
 };
 
-export type FeeCadence = "monthly" | "one-time";
+export type FeeCadence = "monthly" | "one-time" | "unknown";
 
 /** published: a source states the number. estimated: our estimate. unknown: no number found. */
 export type FeeBasis = "published" | "estimated" | "unknown";
@@ -65,12 +68,18 @@ export type Fee = {
 /** The view model one comparison column renders. */
 export type ComparisonApartment = {
   id: string;
+  profile?: ApartmentProfile;
+  databaseId?: string;
+  fetchedAt?: string;
+  researchStatus?: "loading" | "error" | "ready";
+  researchError?: string;
   name: string;
   street: string;
   neighborhood: string;
   coords: { lat: number; lng: number } | null;
   advertisedRent: number | null;
-  rentBasis: "per person" | "per unit";
+  rentBasis: "per person" | "per unit" | "basis unknown";
+  rentSourceUrl?: string | null;
   floorPlan: { beds: number | null; baths: number | null; note: string | null };
   walking: RouteLeg | null;
   cycling: RouteLeg | null;
@@ -82,6 +91,8 @@ export type ComparisonApartment = {
   googleRating: number | null;
   googleReviewCount: number | null;
   fees: Fee[];
+  reviews?: ApartmentProfile["reviews"];
+  sources?: string[];
   photoTone: "brick" | "stucco" | "timber";
   isSample: boolean;
 };

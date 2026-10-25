@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Suspense } from "react"
 
-import { BrandMark } from "@/components/brand-mark"
+import { AppHeader } from "@/components/app-header"
 import { LoginForm } from "@/components/login-form"
 import { getLandingSession } from "@/lib/auth"
 
@@ -27,14 +27,9 @@ export default function Home({
 }) {
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <header className="flex items-center justify-between px-6 py-5 md:px-10">
-        <Link href="/" aria-label="Unlisted">
-          <BrandMark />
-        </Link>
-        <Suspense fallback={<span className="h-8 w-28" aria-hidden="true" />}>
-          <HeaderAccount />
-        </Suspense>
-      </header>
+      <AppHeader>
+        <div className="ml-auto"><Suspense fallback={<span className="h-8 w-28" aria-hidden="true" />}><HeaderAccount /></Suspense></div>
+      </AppHeader>
 
       <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-12 px-6 py-8 md:px-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,28rem)] lg:py-16">
         <section>

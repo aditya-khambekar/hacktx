@@ -65,7 +65,7 @@ export function PreferencesBar({ preferences, onChange }: PreferencesBarProps) {
         <h2 id="priorities-label" className="text-[13px] font-semibold text-ink">
           Your priorities
         </h2>
-        <p className="text-[11.5px] text-ink-soft">Click a priority to change it. The comparison and assistant use these.</p>
+        <p className="text-[11.5px] text-ink-soft">Budget flags rent above your limit. Other priorities are notes, not filters yet.</p>
       </div>
 
       <ul className="mt-3 flex flex-wrap items-center gap-2">

@@ -9,13 +9,4 @@ export function LogoMark({ size = 34 }: { size?: number }) {
   );
 }
 
-export function Logo() {
-  return (
-    <span className="flex items-center gap-2.5">
-      <LogoMark />
-      <span className="text-[30px] leading-none font-extrabold tracking-[-0.04em] text-brand">
-        un<span className="border-b-[3px] border-clay">listed</span>
-      </span>
-    </span>
-  );
-}
+export { BrandMark as Logo } from "@/components/brand-mark";
