@@ -49,6 +49,12 @@ export type ApartmentProfile = {
   }>;
   amenities?: Array<{ name: string; sourceUrl: string }>;
   propertyFees?: Array<{ name: string; amount: number | null; cadence: string | null; sourceUrl: string }>;
+  lease?: {
+    months: number | null;
+    type: string | null;
+    dates: string | null;
+    sourceUrl: string | null;
+  };
   sources: string[];
 };
 

@@ -23,6 +23,7 @@ export const CHAT_PHASES = [
   "directions_cycling",
   "classify_reviews",
   "extract_listing",
+  "site_research",
 ] as const;
 
 export type ChatPhase = (typeof CHAT_PHASES)[number];

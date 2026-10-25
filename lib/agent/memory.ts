@@ -95,6 +95,7 @@ function renderApartment(profile: ApartmentProfile): string {
     field("Google review count", profile.googleReviewCount === null ? null : String(profile.googleReviewCount)),
     field("Walk to UT Tower", routeLeg(profile.campus.walking)),
     field("Bike to UT Tower", routeLeg(profile.campus.cycling)),
+    field("Lease", leaseLine(profile.lease)),
     "",
     "#### Floor plans",
     renderFloorplans(profile),
@@ -108,6 +109,16 @@ function renderApartment(profile: ApartmentProfile): string {
     "#### Reviews",
     renderReviews(profile),
   ].join("\n");
+}
+
+function leaseLine(lease: ApartmentProfile["lease"]): string | null {
+  if (!lease) return null;
+  const parts = [
+    lease.months === null ? "" : `${lease.months} months`,
+    lease.type ? inline(lease.type) : "",
+    lease.dates ? inline(lease.dates) : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 function honestRatingLine(profile: ApartmentProfile): string {

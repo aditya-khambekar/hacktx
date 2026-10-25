@@ -65,7 +65,7 @@ Client: OpenAI SDK pointed at `MUSE_BASE_URL` with `apiKey: process.env.MODEL_AP
 
 Endpoint: `POST /v1/responses`.
 
-Do not call `POST /v1/chat/completions`. Do not pass `response_format` (that is the Chat Completions parameter). Do not register Meta's built-in `web_search` tool. Do not set `reasoning.effort` to `"none"`. `tool_choice` is `"auto"`.
+Do not call `POST /v1/chat/completions`. Do not pass `response_format` (that is the Chat Completions parameter). Do not register Meta's built-in `web_search` tool on the chat tool loop. `buildProfile` may call `web_search` in a separate site-research request, restricted to the official property host, only after SerpAPI snippets leave listing or lease gaps. Do not set `reasoning.effort` to `"none"`. `tool_choice` is `"auto"`.
 
 Tool definitions are flat. `name`, `description`, and `parameters` sit on the tool object, not under a nested `function` key.
 
@@ -372,6 +372,12 @@ type ApartmentProfile = {
     about: "tour" | "apartment" | "unclear";
     reason: string;
   }>;
+  lease?: {
+    months: number | null;
+    type: string | null;
+    dates: string | null;
+    sourceUrl: string | null;
+  };
   sources: string[];
 };
 
@@ -401,7 +407,7 @@ Body: `{ "conversationId"?: string, "message": string }`.
 
 Response: `Content-Type: text/event-stream`. Events:
 
-- `event: status` `data: {"phase":"maps_search"|"web_search"|"place"|"reviews"|"directions_walking"|"directions_cycling"|"classify_reviews"|"extract_listing"}`
+- `event: status` `data: {"phase":"maps_search"|"web_search"|"place"|"reviews"|"directions_walking"|"directions_cycling"|"classify_reviews"|"extract_listing"|"site_research"}`
 - `event: suggestion` `data:` one `ApartmentProfile` JSON object. At most `MAX_SUGGESTIONS` per response.
 - `event: message` `data: {"text": string}`
 - `event: error` `data: {"error": string}`
@@ -491,4 +497,4 @@ Walk and bike times are to the UT Tower, not the nearest classroom. A null leg i
 
 Each full profile is one place call, one Google search, one or two review pages, and two directions calls. Three suggestions plus their web checks can spend most of `MAX_SERP_CALLS`.
 
-Floor plans and fees exist only when a snippet stated them. The honest rating is over the fetched pages, and only over reviews labeled `apartment`. A solicited review that never mentions a tour can be kept. A resident comment that is about tour day can be set aside. The reason string is what the UI shows.
+Floor plans and fees exist only when a snippet or official-site page stated them. The honest rating is over the fetched pages, and only over reviews labeled `apartment`. A solicited review that never mentions a tour can be kept. A resident comment that is about tour day can be set aside. The reason string is what the UI shows.
